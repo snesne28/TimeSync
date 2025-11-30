@@ -1,3 +1,6 @@
+// frontend/src/types.ts
+
+// 1. Export CalendarEvent
 export interface CalendarEvent {
   id: string;
   title: string;
@@ -5,10 +8,11 @@ export interface CalendarEvent {
   endTime: Date;
   description?: string;
   color?: string;
-  location?: string; // Added location
+  location?: string;
   attendees?: string[];
 }
 
+// 2. Export ChatMessage
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
@@ -16,9 +20,10 @@ export interface ChatMessage {
   timestamp: Date;
 }
 
+// 3. Export CalendarView
 export type CalendarView = 'month' | 'week' | 'day' | 'table' | 'kanban' | 'gantt';
 
-// Add this interface to fix the error!
+// 4. Export CalendarSettings
 export interface CalendarSettings {
   showEvents: boolean;
   showHolidays: boolean;
