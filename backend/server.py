@@ -183,3 +183,7 @@ def chat_endpoint(
         return {"response": response.text}
     except Exception as e:
         return {"response": f"Error: {str(e)}"}
+
+@app.get("/")
+def read_root():
+    return {"status": "alive"}
