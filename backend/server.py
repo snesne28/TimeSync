@@ -22,6 +22,8 @@ class Event(SQLModel, table=True):
     start: str
     end: str
     description: Optional[str] = None
+    # [FIX] Added status back because the database requires it
+    status: str = "confirmed"
 
 class ChatLog(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -63,7 +65,7 @@ def save_chat_log(session: Session, guest_id: str, role: str, content: str):
         session.add(log)
         session.commit()
     except Exception as e:
-        print(f" Error saving chat log: {e}")
+        print(f"Error saving chat log: {e}")
 
 # --- 4. TOOL FUNCTIONS ---
 def read_events_db(session: Session, guest_id: str):
@@ -92,7 +94,7 @@ def book_meeting(start_time_iso: str, title: str, guest_id: str, session: Sessio
     try:
         start = arrow.get(start_time_iso)
     except:
-        print(f" Date Parse Error: {start_time_iso}")
+        print(f"❌ Date Parse Error: {start_time_iso}")
         return f"Invalid time format: {start_time_iso}"
     
     try:
@@ -101,14 +103,16 @@ def book_meeting(start_time_iso: str, title: str, guest_id: str, session: Sessio
             summary=title,
             start=start.isoformat(),
             end=start.shift(minutes=30).isoformat(),
-            description="Booked via AI"
+            description="Booked via AI",
+            status="confirmed" # [FIX] Added this back!
         )
         session.add(new_event)
         session.commit()
         print(f"✅ Success! Event ID: {new_event.id}")
         return f"OK. Meeting '{title}' booked for {start.format('YYYY-MM-DD HH:mm')}."
     except Exception as e:
-        print(f" DATABASE ERROR: {e}")
+        session.rollback() # [FIX] Rollback transaction on error
+        print(f"❌ DATABASE ERROR: {e}")
         return f"Database Error: {str(e)}"
 
 def delete_meeting(title: str, date_str: str, guest_id: str, session: Session):
@@ -172,7 +176,8 @@ def create_event_endpoint(evt: ManualEvent, guest_id: str = Depends(get_current_
         summary=evt.summary,
         start=arrow.get(evt.start).isoformat(),
         end=arrow.get(evt.end).isoformat(),
-        description=evt.description
+        description=evt.description,
+        status="confirmed"
     )
     session.add(new_event)
     session.commit()
@@ -202,12 +207,11 @@ def chat_endpoint(req: ChatRequest, guest_id: str = Depends(get_current_guest_id
         try: return delete_meeting(title, date_str, guest_id, session)
         except Exception as e: return f"Error: {str(e)}"
 
-    # --- CRITICAL FIX: Rename functions so AI uses the correct names ---
+    # --- Rename Functions for Gemini ---
     check_availability_wrapper.__name__ = "check_availability"
     book_meeting_wrapper.__name__ = "book_meeting"
     delete_meeting_wrapper.__name__ = "delete_meeting"
 
-    # Now the keys match the names Gemini sees
     tools_map = {
         'check_availability': check_availability_wrapper,
         'book_meeting': book_meeting_wrapper,
@@ -231,12 +235,12 @@ def chat_endpoint(req: ChatRequest, guest_id: str = Depends(get_current_guest_id
             func_name = fc.name
             args = dict(fc.args)
             
-            print(f" AI Calling Tool: {func_name}") # DEBUG LOG
+            print(f" AI Calling Tool: {func_name}")
             
             if func_name in tools_map:
                 tool_result = tools_map[func_name](**args)
             else:
-                tool_result = f"Error: Function '{func_name}' not found in tools map."
+                tool_result = f"Error: Function '{func_name}' not found."
             
             print(f" Tool Result: {tool_result}")
 
@@ -255,5 +259,5 @@ def chat_endpoint(req: ChatRequest, guest_id: str = Depends(get_current_guest_id
         return {"response": response.text}
 
     except Exception as e:
-        print(f"SYSTEM CRASH: {e}")
+        print(f" SYSTEM CRASH: {e}")
         return {"response": f"System Error: {str(e)}"}
