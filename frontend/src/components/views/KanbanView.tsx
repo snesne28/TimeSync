@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MoreHorizontal, Calendar, MapPin, Clock } from 'lucide-react';
+import { MoreHorizontal, Clock, MapPin } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Button } from '../ui/button';
@@ -7,7 +7,6 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Event } from '../../App';
 import { format } from 'date-fns';
-import { zhCN } from 'date-fns/locale';
 
 interface KanbanViewProps {
   events: Event[];
@@ -31,13 +30,13 @@ export function KanbanView({ events, onDeleteEvent, onUpdateEvent }: KanbanViewP
           groupKey = event.category;
           break;
         case 'date':
-          groupKey = format(event.startDate, 'yyyy-MM-dd', { locale: zhCN });
+          groupKey = format(event.startDate, 'yyyy-MM-dd');
           break;
         case 'location':
-          groupKey = event.location || '无地点';
+          groupKey = event.location || 'No Location';
           break;
         default:
-          groupKey = '未分组';
+          groupKey = 'Uncategorized';
       }
 
       if (!groups[groupKey]) {
@@ -76,13 +75,13 @@ export function KanbanView({ events, onDeleteEvent, onUpdateEvent }: KanbanViewP
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem>编辑</DropdownMenuItem>
-              <DropdownMenuItem>复制</DropdownMenuItem>
+              <DropdownMenuItem>Edit</DropdownMenuItem>
+              <DropdownMenuItem>Copy</DropdownMenuItem>
               <DropdownMenuItem 
                 className="text-destructive"
                 onClick={() => onDeleteEvent(event.id)}
               >
-                删除
+                Delete
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -92,7 +91,7 @@ export function KanbanView({ events, onDeleteEvent, onUpdateEvent }: KanbanViewP
         <div className="space-y-2">
           <div className="flex items-center text-xs text-muted-foreground">
             <Clock className="w-3 h-3 mr-1" />
-            {format(event.startDate, 'MM-dd HH:mm', { locale: zhCN })} - {format(event.endDate, 'HH:mm', { locale: zhCN })}
+            {format(event.startDate, 'MM-dd HH:mm')} - {format(event.endDate, 'HH:mm')}
           </div>
           
           {event.location && (
@@ -120,25 +119,25 @@ export function KanbanView({ events, onDeleteEvent, onUpdateEvent }: KanbanViewP
 
   return (
     <div className="flex-1 flex flex-col p-6">
-      {/* 看板工具栏 */}
+      {/* Kanban Toolbar */}
       <div className="flex items-center justify-between mb-6">
-        <h2>看板视图</h2>
+        <h2>Kanban View</h2>
         <div className="flex items-center space-x-4">
-          <span className="text-sm text-muted-foreground">分组方式：</span>
+          <span className="text-sm text-muted-foreground">Group by:</span>
           <Select value={groupBy} onValueChange={(value: GroupBy) => setGroupBy(value)}>
             <SelectTrigger className="w-32">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="category">按分类</SelectItem>
-              <SelectItem value="date">按日期</SelectItem>
-              <SelectItem value="location">按地点</SelectItem>
+              <SelectItem value="category">Category</SelectItem>
+              <SelectItem value="date">Date</SelectItem>
+              <SelectItem value="location">Location</SelectItem>
             </SelectContent>
           </Select>
         </div>
       </div>
 
-      {/* 看板列 */}
+      {/* Kanban Columns */}
       <div className="flex-1 overflow-x-auto">
         <div className="flex space-x-6 h-full min-w-max">
           {groupKeys.map(groupKey => {
@@ -147,7 +146,7 @@ export function KanbanView({ events, onDeleteEvent, onUpdateEvent }: KanbanViewP
             
             return (
               <div key={groupKey} className="w-80 flex flex-col">
-                {/* 列头 */}
+                {/* Column Header */}
                 <div className="flex items-center justify-between p-4 bg-muted/30 rounded-t-lg border border-b-0">
                   <div className="flex items-center space-x-2">
                     <div
@@ -161,11 +160,11 @@ export function KanbanView({ events, onDeleteEvent, onUpdateEvent }: KanbanViewP
                   </div>
                 </div>
 
-                {/* 事件列表 */}
+                {/* Event List */}
                 <div className="flex-1 p-4 bg-muted/10 border border-t-0 rounded-b-lg overflow-y-auto">
                   {groupEvents.length === 0 ? (
                     <div className="text-center text-muted-foreground text-sm py-8">
-                      暂无日程
+                      No events
                     </div>
                   ) : (
                     groupEvents.map(event => (
@@ -179,9 +178,9 @@ export function KanbanView({ events, onDeleteEvent, onUpdateEvent }: KanbanViewP
         </div>
       </div>
 
-      {/* 统计信息 */}
+      {/* Statistics */}
       <div className="mt-4 text-sm text-muted-foreground">
-        共 {events.length} 个日程，分为 {groupKeys.length} 组
+        Total {events.length} events, divided into {groupKeys.length} groups
       </div>
     </div>
   );
