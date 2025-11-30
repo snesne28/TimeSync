@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
-import { ChevronLeft, ChevronRight, MoreHorizontal } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '../ui/button';
-import { Card, CardContent } from '../ui/card';
+import { Card } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
 import { Event, CalendarSettings } from '../../App';
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, isSameMonth, isSameDay, addMonths, subMonths } from 'date-fns';
-import { zhCN } from 'date-fns/locale';
 
 interface MonthViewProps {
   events: Event[];
@@ -42,16 +41,16 @@ export function MonthView({ events, onDeleteEvent, onUpdateEvent, settings }: Mo
   };
 
   const getHolidayInfo = (date: Date) => {
-    // 模拟节假日数据
+    // Simulated holiday data
     const holidays = [
-      { date: new Date(2025, 7, 15), name: '中元节' },
-      { date: new Date(2025, 7, 22), name: '处暑' },
+      { date: new Date(2025, 7, 15), name: 'Ghost Festival' },
+      { date: new Date(2025, 7, 22), name: 'Limit of Heat' },
     ];
     return holidays.find(holiday => isSameDay(holiday.date, date));
   };
 
   const getLuckyDayInfo = (date: Date) => {
-    // 模拟黄道吉日数据
+    // Simulated lucky day data
     const luckyDays = [
       new Date(2025, 7, 8),
       new Date(2025, 7, 12),
@@ -63,10 +62,10 @@ export function MonthView({ events, onDeleteEvent, onUpdateEvent, settings }: Mo
 
   return (
     <div className="flex-1 flex flex-col p-6">
-      {/* 月份导航 */}
+      {/* Month Navigation */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center space-x-4">
-          <h2>{format(currentDate, 'yyyy年M月', { locale: zhCN })}</h2>
+          <h2>{format(currentDate, 'MMMM yyyy')}</h2>
           <div className="flex items-center space-x-1">
             <Button
               variant="outline"
@@ -80,7 +79,7 @@ export function MonthView({ events, onDeleteEvent, onUpdateEvent, settings }: Mo
               size="sm"
               onClick={() => setCurrentDate(new Date())}
             >
-              今天
+              Today
             </Button>
             <Button
               variant="outline"
@@ -93,16 +92,16 @@ export function MonthView({ events, onDeleteEvent, onUpdateEvent, settings }: Mo
         </div>
       </div>
 
-      {/* 星期标题 */}
+      {/* Weekday Headers */}
       <div className="grid grid-cols-7 gap-1 mb-2 text-center text-muted-foreground">
-        {['周日', '周一', '周二', '周三', '周四', '周五', '周六'].map(day => (
+        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
           <div key={day} className="p-2">
             {day}
           </div>
         ))}
       </div>
 
-      {/* 日历网格 */}
+      {/* Calendar Grid */}
       <div className="flex-1 grid grid-rows-6 gap-1">
         {weeks.map((week, weekIndex) => (
           <div key={weekIndex} className="grid grid-cols-7 gap-1">
@@ -132,7 +131,7 @@ export function MonthView({ events, onDeleteEvent, onUpdateEvent, settings }: Mo
                           </Badge>
                         )}
                         {isLuckyDay && (
-                          <div className="w-2 h-2 bg-yellow-400 rounded-full" title="黄道吉日" />
+                          <div className="w-2 h-2 bg-yellow-400 rounded-full" title="Lucky Day" />
                         )}
                       </div>
                     </div>
@@ -161,13 +160,13 @@ export function MonthView({ events, onDeleteEvent, onUpdateEvent, settings }: Mo
                                 <p className="text-sm">{event.description}</p>
                               )}
                               <div className="flex justify-end space-x-2">
-                                <Button size="sm" variant="outline">编辑</Button>
+                                <Button size="sm" variant="outline">Edit</Button>
                                 <Button 
                                   size="sm" 
                                   variant="destructive"
                                   onClick={() => onDeleteEvent(event.id)}
                                 >
-                                  删除
+                                  Delete
                                 </Button>
                               </div>
                             </div>
@@ -176,7 +175,7 @@ export function MonthView({ events, onDeleteEvent, onUpdateEvent, settings }: Mo
                       ))}
                       {dayEvents.length > 3 && (
                         <div className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">
-                          +{dayEvents.length - 3} 更多
+                          +{dayEvents.length - 3} more
                         </div>
                       )}
                     </div>
