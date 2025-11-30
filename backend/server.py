@@ -158,7 +158,7 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["time-sync-jet.vercel.app"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -288,3 +288,4 @@ def chat_endpoint(req: ChatRequest, guest_id: str = Depends(get_current_guest_id
     except Exception as e:
         print(f" SYSTEM CRASH: {e}")
         return {"response": f"System Error: {str(e)}"}
+
