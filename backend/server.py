@@ -203,10 +203,13 @@ class ChatRequest(BaseModel):
 
 @app.post("/chat")
 def chat_endpoint(req: ChatRequest, guest_id: str = Depends(get_current_guest_id), session: Session = Depends(get_session)):
-    save_chat_log(session, guest_id, "user", req.message)
+
     db_history = get_chat_context(session, guest_id)
 
-    # --- WRAPPERS ---
+    # [FIX]  Save User Input to DB
+    save_chat_log(session, guest_id, "user", req.message)
+
+    # --- WRAPPERS (Keep as is) ---
     def check_availability_wrapper(date_str: str):
         """Checks if there are any events on a specific date. Args: date_str (YYYY-MM-DD)."""
         try: return check_availability(date_str, guest_id, session)
@@ -214,7 +217,9 @@ def chat_endpoint(req: ChatRequest, guest_id: str = Depends(get_current_guest_id
         
     def book_meeting_wrapper(start_time_iso: str, title: str):
         """Books a new meeting. Args: start_time_iso (ISO 8601), title."""
-        try: return book_meeting(start_time_iso, title, guest_id, session)
+        # [OPTIONAL] Extra safety: Strip whitespace
+        clean_title = title.strip()
+        try: return book_meeting(start_time_iso, clean_title, guest_id, session)
         except Exception as e: return f"Error: {str(e)}"
 
     def delete_meeting_wrapper(title: str, date_str: str):
@@ -233,17 +238,16 @@ def chat_endpoint(req: ChatRequest, guest_id: str = Depends(get_current_guest_id
         'delete_meeting': delete_meeting_wrapper
     }
     
-    # [FIX] Get current time in India (IST)
+    # IST Time Context
     now_str = arrow.now('Asia/Kolkata').format('YYYY-MM-DD HH:mm')
     
-    # [FIX] Instruct AI to use +05:30 offset
     system_instruction = f"""
     You are a scheduler assistant operating in India (IST Timezone). 
     Current time: {now_str} (IST).
     
-    CRITICAL RULE:
-    When calling 'book_meeting', you MUST include the timezone offset '+05:30' in the ISO timestamp.
-    Example: '2023-10-27T19:00:00+05:30'.
+    CRITICAL RULES:
+    1. When calling 'book_meeting', you MUST include the timezone offset '+05:30' in the ISO timestamp.
+    2. Use the EXACT title the user provides. Do not repeat words.
     """
 
     model = genai.GenerativeModel(
@@ -252,9 +256,11 @@ def chat_endpoint(req: ChatRequest, guest_id: str = Depends(get_current_guest_id
         system_instruction=system_instruction
     )
     
+    # Start chat with history (that excludes the current message)
     chat = model.start_chat(history=db_history)
     
     try:
+        # Send the current message
         response = chat.send_message(req.message)
         
         while response.parts and response.parts[0].function_call:
@@ -262,14 +268,14 @@ def chat_endpoint(req: ChatRequest, guest_id: str = Depends(get_current_guest_id
             func_name = fc.name
             args = dict(fc.args)
             
-            print(f" AI Calling Tool: {func_name} | Args: {args}")
+            print(f"AI Calling Tool: {func_name} | Args: {args}")
             
             if func_name in tools_map:
                 tool_result = tools_map[func_name](**args)
             else:
                 tool_result = f"Error: Function '{func_name}' not found."
             
-            print(f" Tool Result: {tool_result}")
+            print(f"Tool Result: {tool_result}")
 
             response = chat.send_message(
                 genai.protos.Content(
@@ -286,6 +292,7 @@ def chat_endpoint(req: ChatRequest, guest_id: str = Depends(get_current_guest_id
         return {"response": response.text}
 
     except Exception as e:
-        print(f" SYSTEM CRASH: {e}")
+        print(f"SYSTEM CRASH: {e}")
         return {"response": f"System Error: {str(e)}"}
+
 
