@@ -77,7 +77,7 @@ export function AIChat({ onSendMessage }: AIChatProps) {
               <Sparkles className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h2 className="text-zinc-100">Scheduler AI</h2>
+              <h2 className="text-zinc-100">TimeSync AI</h2>
               <div className="flex items-center gap-2 mt-1">
                 <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
                 <span className="text-xs text-zinc-500">Online</span>
