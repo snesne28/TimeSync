@@ -1,10 +1,9 @@
 import React, { useState, useMemo } from 'react';
-import { ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Badge } from '../ui/badge';
 import { Event } from '../../App';
-import { format, startOfWeek, endOfWeek, addDays, addWeeks, subWeeks, differenceInDays, isSameDay } from 'date-fns';
-import { zhCN } from 'date-fns/locale';
+import { format, startOfWeek, addDays, addWeeks, subWeeks, differenceInDays, isSameDay } from 'date-fns';
 
 interface GanttViewProps {
   events: Event[];
@@ -14,7 +13,7 @@ interface GanttViewProps {
 
 export function GanttView({ events, onDeleteEvent, onUpdateEvent }: GanttViewProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [viewWeeks, setViewWeeks] = useState(4); // 显示4周
+  const [viewWeeks, setViewWeeks] = useState(4); // Show 4 weeks
 
   const weekStart = startOfWeek(currentDate);
   const totalDays = viewWeeks * 7;
@@ -35,7 +34,7 @@ export function GanttView({ events, onDeleteEvent, onUpdateEvent }: GanttViewPro
     return result;
   }, [weekStart, viewWeeks]);
 
-  // 按分类分组事件
+  // Group events by category
   const groupedEvents = useMemo(() => {
     const groups: { [category: string]: Event[] } = {};
     events.forEach(event => {
@@ -54,7 +53,7 @@ export function GanttView({ events, onDeleteEvent, onUpdateEvent }: GanttViewPro
     const eventStartDay = Math.max(0, differenceInDays(eventStart, weekStart));
     const eventDuration = Math.max(1, differenceInDays(event.endDate, event.startDate) || 1);
     
-    // 如果事件在显示范围内
+    // If event is within the view range
     if (eventStartDay < totalDays && eventStartDay >= 0) {
       const left = (eventStartDay / totalDays) * 100;
       const width = Math.min((eventDuration / totalDays) * 100, 100 - left);
@@ -70,16 +69,12 @@ export function GanttView({ events, onDeleteEvent, onUpdateEvent }: GanttViewPro
     return null;
   };
 
-  const getDayColumnWidth = () => {
-    return `${100 / totalDays}%`;
-  };
-
   return (
     <div className="flex-1 flex flex-col p-6">
-      {/* 甘特图工具栏 */}
+      {/* Gantt Toolbar */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center space-x-4">
-          <h2>甘特视图</h2>
+          <h2>Gantt View</h2>
           <div className="flex items-center space-x-2">
             <Button
               variant="outline"
@@ -93,7 +88,7 @@ export function GanttView({ events, onDeleteEvent, onUpdateEvent }: GanttViewPro
               size="sm"
               onClick={() => setCurrentDate(new Date())}
             >
-              今天
+              Today
             </Button>
             <Button
               variant="outline"
@@ -106,41 +101,41 @@ export function GanttView({ events, onDeleteEvent, onUpdateEvent }: GanttViewPro
         </div>
         
         <div className="flex items-center space-x-2">
-          <span className="text-sm text-muted-foreground">显示周数：</span>
+          <span className="text-sm text-muted-foreground">Weeks shown:</span>
           <select 
             value={viewWeeks} 
             onChange={(e) => setViewWeeks(Number(e.target.value))}
             className="px-2 py-1 border border-border rounded text-sm"
           >
-            <option value={2}>2周</option>
-            <option value={4}>4周</option>
-            <option value={8}>8周</option>
-            <option value={12}>12周</option>
+            <option value={2}>2 Weeks</option>
+            <option value={4}>4 Weeks</option>
+            <option value={8}>8 Weeks</option>
+            <option value={12}>12 Weeks</option>
           </select>
         </div>
       </div>
 
-      {/* 甘特图 */}
+      {/* Gantt Chart */}
       <div className="flex-1 border border-border rounded-lg overflow-hidden bg-card">
-        {/* 时间轴头部 */}
+        {/* Timeline Header */}
         <div className="border-b border-border">
-          {/* 周标题 */}
+          {/* Week Header */}
           <div className="flex">
             <div className="w-48 bg-muted/30 border-r border-border p-2">
-              <span className="text-sm font-medium">分类</span>
+              <span className="text-sm font-medium">Category</span>
             </div>
             <div className="flex-1 grid" style={{ gridTemplateColumns: `repeat(${viewWeeks}, 1fr)` }}>
               {weeks.map((week, index) => (
                 <div key={index} className="border-r border-border last:border-r-0 p-2 text-center bg-muted/30">
                   <div className="text-sm font-medium">
-                    {format(week, 'M月d日', { locale: zhCN })}
+                    {format(week, 'MMM d')}
                   </div>
                 </div>
               ))}
             </div>
           </div>
           
-          {/* 日期标题 */}
+          {/* Day Header */}
           <div className="flex">
             <div className="w-48 bg-muted/30 border-r border-border p-1"></div>
             <div className="flex-1 grid" style={{ gridTemplateColumns: `repeat(${totalDays}, 1fr)` }}>
@@ -156,7 +151,7 @@ export function GanttView({ events, onDeleteEvent, onUpdateEvent }: GanttViewPro
                       isWeekend ? 'bg-muted' : 'bg-muted/30'
                     }`}
                   >
-                    {format(day, 'd', { locale: zhCN })}
+                    {format(day, 'd')}
                   </div>
                 );
               })}
@@ -164,11 +159,11 @@ export function GanttView({ events, onDeleteEvent, onUpdateEvent }: GanttViewPro
           </div>
         </div>
 
-        {/* 甘特图内容 */}
+        {/* Gantt Content */}
         <div className="flex-1 overflow-y-auto max-h-[600px]">
           {categories.length === 0 ? (
             <div className="flex items-center justify-center h-32 text-muted-foreground">
-              暂无日程数据
+              No event data
             </div>
           ) : (
             categories.map(category => {
@@ -178,7 +173,7 @@ export function GanttView({ events, onDeleteEvent, onUpdateEvent }: GanttViewPro
               return (
                 <div key={category} className="border-b border-border last:border-b-0">
                   <div className="flex min-h-[60px]">
-                    {/* 分类标签 */}
+                    {/* Category Label */}
                     <div className="w-48 border-r border-border p-3 bg-muted/10 flex items-center">
                       <div className="flex items-center space-x-2">
                         <div
@@ -192,9 +187,9 @@ export function GanttView({ events, onDeleteEvent, onUpdateEvent }: GanttViewPro
                       </div>
                     </div>
                     
-                    {/* 时间轴区域 */}
+                    {/* Timeline Area */}
                     <div className="flex-1 relative">
-                      {/* 日期网格背景 */}
+                      {/* Date Grid Background */}
                       <div className="absolute inset-0 grid" style={{ gridTemplateColumns: `repeat(${totalDays}, 1fr)` }}>
                         {days.map((day, index) => {
                           const isToday = isSameDay(day, new Date());
@@ -212,7 +207,7 @@ export function GanttView({ events, onDeleteEvent, onUpdateEvent }: GanttViewPro
                         })}
                       </div>
                       
-                      {/* 事件条 */}
+                      {/* Event Bars */}
                       <div className="relative h-full p-2">
                         {categoryEvents.map((event, eventIndex) => {
                           const barStyle = getEventBarStyle(event);
@@ -246,10 +241,10 @@ export function GanttView({ events, onDeleteEvent, onUpdateEvent }: GanttViewPro
         </div>
       </div>
 
-      {/* 统计信息 */}
+      {/* Statistics */}
       <div className="mt-4 text-sm text-muted-foreground">
-        时间范围：{format(weekStart, 'yyyy年M月d日', { locale: zhCN })} - {format(addDays(weekStart, totalDays - 1), 'yyyy年M月d日', { locale: zhCN })}
-        　共 {events.length} 个日程
+        Time Range: {format(weekStart, 'MMM d, yyyy')} - {format(addDays(weekStart, totalDays - 1), 'MMM d, yyyy')}
+        　Total {events.length} events
       </div>
     </div>
   );
