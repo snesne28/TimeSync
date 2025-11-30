@@ -150,7 +150,7 @@ def chat_endpoint(
     
     # Initialize Model with tools
     model = genai.GenerativeModel(
-        'gemini-1.5-flash', 
+        'gemini-2.5-flash', 
         tools=tools_map.values(),
         system_instruction=f"You are a scheduler assistant. Current time: {arrow.now().format('YYYY-MM-DD HH:mm')}. Use the tools to check availability or book meetings."
     )
@@ -187,3 +187,4 @@ def chat_endpoint(
 @app.get("/")
 def read_root():
     return {"status": "alive"}
+
