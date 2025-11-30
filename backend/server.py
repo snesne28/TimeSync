@@ -9,7 +9,7 @@ import google.generativeai as genai
 # --- 1. CONFIGURATION & DATABASE ---
 # For local use: sqlite:///database.db
 # For Render: Use the postgresql URL they give you
-DATABASE_URL = os.environ.get("postgresql://scheduler_db_bnfu_user:5QWqqPp4Y5fo674NuPZGLPAnQ8FHlLZ4@dpg-d4m0fg24d50c73eba8rg-a/scheduler_db_bnfu", "sqlite:///scheduler.db")
+DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///scheduler.db")
 
 class Event(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -86,3 +86,4 @@ def create_event_endpoint(
     session.add(new_event)
     session.commit()
     return {"status": "success", "id": new_event.id}
+
