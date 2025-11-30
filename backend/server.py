@@ -11,60 +11,79 @@ from pydantic import BaseModel
 os.environ["GOOGLE_API_KEY"] = os.environ.get("GOOGLE_API_KEY", "") 
 genai.configure(api_key=os.environ["GOOGLE_API_KEY"])
 
-DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///scheduler.db")
+# Get the Database URL from Render Environment
+DATABASE_URL = os.environ.get("DATABASE_URL")
 
-# --- MODELS ---
+# STRICT CHECK: Crash if no DB URL is found (prevents local file usage)
+if not DATABASE_URL:
+    raise ValueError(" DATABASE_URL is missing! Please set it in Render Environment Variables.")
 
+
+# --- 2. DATABASE MODELS ---
+
+# Table 1: Meetings (Events)
 class Event(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
-    user_id: str = Field(index=True)
+    user_id: str = Field(index=True)  # <--- SEPARATES USERS
     summary: str
     start: str
     end: str
     description: Optional[str] = None
+    status: str = "confirmed"        
 
+# Table 2: Context (Chat History)
 class ChatLog(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
-    user_id: str = Field(index=True)
-    role: str
-    content: str
+    user_id: str = Field(index=True)  # <--- SEPARATES USERS
+    role: str      # 'user' or 'model'
+    content: str   # The actual message text
     timestamp: str
 
 # Create DB Engine
 engine = create_engine(DATABASE_URL)
 
 def create_db_and_tables():
+    # Creates tables in PostgreSQL if they don't exist
     SQLModel.metadata.create_all(engine)
 
-# --- 2. DEPENDENCIES ---
+# --- 3. DEPENDENCIES ---
 def get_current_guest_id(x_guest_id: str = Header(...)):
+    """Ensures every request has a User ID attached."""
     return x_guest_id
 
 def get_session():
     with Session(engine) as session:
         yield session
 
-# --- 3. HELPER FUNCTIONS ---
+# --- 4. HELPER FUNCTIONS ---
+
 def get_chat_context(session: Session, guest_id: str, limit: int = 10):
-    try:
-        statement = select(ChatLog).where(ChatLog.user_id == guest_id).order_by(ChatLog.id.desc()).limit(limit)
-        results = session.exec(statement).all()
-        history = []
-        for log in reversed(results):
-            history.append({"role": log.role, "parts": [log.content]})
-        return history
-    except Exception:
-        return []
+    """Retrieves the last 10 messages for THIS specific user."""
+    statement = select(ChatLog).where(ChatLog.user_id == guest_id).order_by(ChatLog.id.desc()).limit(limit)
+    results = session.exec(statement).all()
+    
+    # Reverse to chronological order for Gemini
+    history = []
+    for log in reversed(results):
+        history.append({"role": log.role, "parts": [log.content]})
+    return history
 
 def save_chat_log(session: Session, guest_id: str, role: str, content: str):
+    """Saves a message to PostgreSQL."""
     try:
-        log = ChatLog(user_id=guest_id, role=role, content=content, timestamp=arrow.now().isoformat())
+        log = ChatLog(
+            user_id=guest_id, 
+            role=role, 
+            content=content, 
+            timestamp=arrow.now().isoformat()
+        )
         session.add(log)
         session.commit()
     except Exception as e:
         print(f"Warning: Could not save chat log: {e}")
 
-# --- 4. TOOL FUNCTIONS ---
+# --- 5. TOOL FUNCTIONS ---
+
 def read_events_db(session: Session, guest_id: str):
     statement = select(Event).where(Event.user_id == guest_id)
     return session.exec(statement).all()
@@ -97,33 +116,27 @@ def book_meeting(start_time_iso: str, title: str, guest_id: str, session: Sessio
         summary=title,
         start=start.isoformat(),
         end=start.shift(minutes=30).isoformat(),
-        description="Booked via AI"
+        description="Booked via AI",
+        status="confirmed"
     )
     session.add(new_event)
     session.commit()
     return f"OK. Meeting '{title}' booked for {start.format('YYYY-MM-DD HH:mm')}."
 
-# [NEW] Delete Function
 def delete_meeting(title: str, date_str: str, guest_id: str, session: Session):
     try:
         target_day = arrow.get(date_str).floor('day')
     except:
-        return "Invalid date format. Please provide YYYY-MM-DD."
+        return "Invalid date format."
     
-    # 1. Get all events for this user
     events = read_events_db(session, guest_id)
-    
-    # 2. Find matches (Same day AND similar title)
     events_to_delete = []
+    
     for event in events:
         start = arrow.get(event.start)
-        is_same_day = start.floor('day') == target_day
-        is_title_match = title.lower() in event.summary.lower()
-        
-        if is_same_day and is_title_match:
+        if start.floor('day') == target_day and title.lower() in event.summary.lower():
             events_to_delete.append(event)
             
-    # 3. Delete them
     if not events_to_delete:
         return f"No meeting found with title '{title}' on {date_str}."
     
@@ -131,9 +144,9 @@ def delete_meeting(title: str, date_str: str, guest_id: str, session: Session):
         session.delete(event)
     
     session.commit()
-    return f"OK. Canceled {len(events_to_delete)} meeting(s) matching '{title}'."
+    return f"OK. Canceled {len(events_to_delete)} meeting(s)."
 
-# --- 5. SERVER SETUP ---
+# --- 6. SERVER SETUP ---
 app = FastAPI()
 
 app.add_middleware(
@@ -150,7 +163,9 @@ def on_startup():
 
 @app.get("/")
 def read_root():
-    return {"status": "alive"}
+    return {"status": "alive", "backend": "PostgreSQL"}
+
+# --- 7. ENDPOINTS ---
 
 @app.get("/events")
 def get_events(guest_id: str = Depends(get_current_guest_id), session: Session = Depends(get_session)):
@@ -180,54 +195,40 @@ class ChatRequest(BaseModel):
 
 @app.post("/chat")
 def chat_endpoint(req: ChatRequest, guest_id: str = Depends(get_current_guest_id), session: Session = Depends(get_session)):
+    # 1. Save User Input
     save_chat_log(session, guest_id, "user", req.message)
+    
+    # 2. Get Context (Last 10 messages)
     db_history = get_chat_context(session, guest_id)
 
-    # --- WRAPPERS ---
+    # 3. Define AI Tools
     def check_availability_wrapper(date_str: str):
-        """Checks if there are any events on a specific date.
-        Args:
-            date_str: The date to check in 'YYYY-MM-DD' format.
-        """
-        try:
-            return check_availability(date_str, guest_id, session)
-        except Exception as e:
-            return f"Error: {str(e)}"
+        """Checks if there are any events on a specific date. Args: date_str (YYYY-MM-DD)."""
+        try: return check_availability(date_str, guest_id, session)
+        except Exception as e: return f"Error: {str(e)}"
         
     def book_meeting_wrapper(start_time_iso: str, title: str):
-        """Books a new meeting.
-        Args:
-            start_time_iso: The start time in ISO 8601 format (e.g., 2023-10-27T10:00:00).
-            title: The title or summary of the meeting.
-        """
-        try:
-            return book_meeting(start_time_iso, title, guest_id, session)
-        except Exception as e:
-            return f"Error: {str(e)}"
+        """Books a new meeting. Args: start_time_iso (ISO 8601), title."""
+        try: return book_meeting(start_time_iso, title, guest_id, session)
+        except Exception as e: return f"Error: {str(e)}"
 
-    # [NEW] Delete Wrapper
     def delete_meeting_wrapper(title: str, date_str: str):
-        """Cancels/Deletes a meeting.
-        Args:
-            title: The title or keyword of the meeting to cancel.
-            date_str: The date of the meeting in 'YYYY-MM-DD' format.
-        """
-        try:
-            return delete_meeting(title, date_str, guest_id, session)
-        except Exception as e:
-            return f"Error: {str(e)}"
+        """Cancels a meeting. Args: title (keyword), date_str (YYYY-MM-DD)."""
+        try: return delete_meeting(title, date_str, guest_id, session)
+        except Exception as e: return f"Error: {str(e)}"
 
     tools_map = {
         'check_availability': check_availability_wrapper,
         'book_meeting': book_meeting_wrapper,
-        'delete_meeting': delete_meeting_wrapper # Added here!
+        'delete_meeting': delete_meeting_wrapper
     }
     
+    # 4. Run AI
     now_str = arrow.now().format('YYYY-MM-DD HH:mm')
     model = genai.GenerativeModel(
         'gemini-2.5-flash', 
         tools=list(tools_map.values()),
-        system_instruction=f"You are a scheduler assistant. Current time: {now_str}. Use tools to check availability, book, or cancel meetings."
+        system_instruction=f"You are a scheduler assistant. Current time: {now_str}. Use tools to check, book, or cancel meetings."
     )
     
     chat = model.start_chat(history=db_history)
@@ -256,6 +257,7 @@ def chat_endpoint(req: ChatRequest, guest_id: str = Depends(get_current_guest_id
                 )
             )
         
+        # 5. Save AI Response
         save_chat_log(session, guest_id, "model", response.text)
         return {"response": response.text}
 
