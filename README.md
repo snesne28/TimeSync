@@ -34,7 +34,7 @@ This project implements a full-stack AI Agent using a **React** frontend and a *
 
 ### Prerequisites
 * Node.js (v18+)
-* Python (v3.9+)
+* Python (v3.10+)
 * A Google Gemini API Key
 
 ### 1. Backend Setup
