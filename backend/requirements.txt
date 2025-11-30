@@ -1,0 +1,6 @@
+fastapi
+uvicorn
+sqlmodel
+google-generativeai
+psycopg2-binary
+arrow
