@@ -11,79 +11,67 @@ from pydantic import BaseModel
 os.environ["GOOGLE_API_KEY"] = os.environ.get("GOOGLE_API_KEY", "") 
 genai.configure(api_key=os.environ["GOOGLE_API_KEY"])
 
-# Get the Database URL from Render Environment
 DATABASE_URL = os.environ.get("DATABASE_URL")
-
-# STRICT CHECK: Crash if no DB URL is found (prevents local file usage)
 if not DATABASE_URL:
-    raise ValueError(" DATABASE_URL is missing! Please set it in Render Environment Variables.")
+    raise ValueError(" DATABASE_URL is missing!")
 
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-# --- 2. DATABASE MODELS ---
+# --- MODELS ---
 
-# Table 1: Meetings (Events)
 class Event(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
-    user_id: str = Field(index=True)  # <--- SEPARATES USERS
+    user_id: str = Field(index=True)
     summary: str
     start: str
     end: str
     description: Optional[str] = None
-    status: str = "confirmed"        
+    # REMOVED status to prevent database mismatch errors
 
-# Table 2: Context (Chat History)
 class ChatLog(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
-    user_id: str = Field(index=True)  # <--- SEPARATES USERS
-    role: str      # 'user' or 'model'
-    content: str   # The actual message text
+    user_id: str = Field(index=True)
+    role: str
+    content: str
     timestamp: str
 
 # Create DB Engine
 engine = create_engine(DATABASE_URL)
 
 def create_db_and_tables():
-    # Creates tables in PostgreSQL if they don't exist
     SQLModel.metadata.create_all(engine)
 
-# --- 3. DEPENDENCIES ---
+# --- 2. DEPENDENCIES ---
 def get_current_guest_id(x_guest_id: str = Header(...)):
-    """Ensures every request has a User ID attached."""
     return x_guest_id
 
 def get_session():
     with Session(engine) as session:
         yield session
 
-# --- 4. HELPER FUNCTIONS ---
-
+# --- 3. HELPER FUNCTIONS ---
 def get_chat_context(session: Session, guest_id: str, limit: int = 10):
-    """Retrieves the last 10 messages for THIS specific user."""
-    statement = select(ChatLog).where(ChatLog.user_id == guest_id).order_by(ChatLog.id.desc()).limit(limit)
-    results = session.exec(statement).all()
-    
-    # Reverse to chronological order for Gemini
-    history = []
-    for log in reversed(results):
-        history.append({"role": log.role, "parts": [log.content]})
-    return history
+    try:
+        statement = select(ChatLog).where(ChatLog.user_id == guest_id).order_by(ChatLog.id.desc()).limit(limit)
+        results = session.exec(statement).all()
+        history = []
+        for log in reversed(results):
+            history.append({"role": log.role, "parts": [log.content]})
+        return history
+    except Exception as e:
+        print(f" Error fetching history: {e}")
+        return []
 
 def save_chat_log(session: Session, guest_id: str, role: str, content: str):
-    """Saves a message to PostgreSQL."""
     try:
-        log = ChatLog(
-            user_id=guest_id, 
-            role=role, 
-            content=content, 
-            timestamp=arrow.now().isoformat()
-        )
+        log = ChatLog(user_id=guest_id, role=role, content=content, timestamp=arrow.now().isoformat())
         session.add(log)
         session.commit()
     except Exception as e:
-        print(f"Warning: Could not save chat log: {e}")
+        print(f"⚠️ Error saving chat log: {e}")
 
-# --- 5. TOOL FUNCTIONS ---
-
+# --- 4. TOOL FUNCTIONS ---
 def read_events_db(session: Session, guest_id: str):
     statement = select(Event).where(Event.user_id == guest_id)
     return session.exec(statement).all()
@@ -106,22 +94,29 @@ def check_availability(date_str: str, guest_id: str, session: Session):
     return f"Busy slots on {date_str}: {', '.join(busy_list)}."
 
 def book_meeting(start_time_iso: str, title: str, guest_id: str, session: Session):
+    print(f"📝 Attempting to book: {title} at {start_time_iso}") # DEBUG LOG
     try:
         start = arrow.get(start_time_iso)
     except:
+        print(f" Date Parse Error: {start_time_iso}")
         return f"Invalid time format: {start_time_iso}"
     
-    new_event = Event(
-        user_id=guest_id,
-        summary=title,
-        start=start.isoformat(),
-        end=start.shift(minutes=30).isoformat(),
-        description="Booked via AI",
-        status="confirmed"
-    )
-    session.add(new_event)
-    session.commit()
-    return f"OK. Meeting '{title}' booked for {start.format('YYYY-MM-DD HH:mm')}."
+    try:
+        new_event = Event(
+            user_id=guest_id,
+            summary=title,
+            start=start.isoformat(),
+            end=start.shift(minutes=30).isoformat(),
+            description="Booked via AI"
+            # REMOVED status assignment
+        )
+        session.add(new_event)
+        session.commit()
+        print(f" Success! Event ID: {new_event.id}")
+        return f"OK. Meeting '{title}' booked for {start.format('YYYY-MM-DD HH:mm')}."
+    except Exception as e:
+        print(f" DATABASE ERROR: {e}") # THIS WILL SHOW IN RENDER LOGS
+        return f"Database Error: {str(e)}"
 
 def delete_meeting(title: str, date_str: str, guest_id: str, session: Session):
     try:
@@ -146,7 +141,7 @@ def delete_meeting(title: str, date_str: str, guest_id: str, session: Session):
     session.commit()
     return f"OK. Canceled {len(events_to_delete)} meeting(s)."
 
-# --- 6. SERVER SETUP ---
+# --- 5. SERVER SETUP ---
 app = FastAPI()
 
 app.add_middleware(
@@ -165,7 +160,7 @@ def on_startup():
 def read_root():
     return {"status": "alive", "backend": "PostgreSQL"}
 
-# --- 7. ENDPOINTS ---
+# --- 6. ENDPOINTS ---
 
 @app.get("/events")
 def get_events(guest_id: str = Depends(get_current_guest_id), session: Session = Depends(get_session)):
@@ -195,13 +190,9 @@ class ChatRequest(BaseModel):
 
 @app.post("/chat")
 def chat_endpoint(req: ChatRequest, guest_id: str = Depends(get_current_guest_id), session: Session = Depends(get_session)):
-    # 1. Save User Input
     save_chat_log(session, guest_id, "user", req.message)
-    
-    # 2. Get Context (Last 10 messages)
     db_history = get_chat_context(session, guest_id)
 
-    # 3. Define AI Tools
     def check_availability_wrapper(date_str: str):
         """Checks if there are any events on a specific date. Args: date_str (YYYY-MM-DD)."""
         try: return check_availability(date_str, guest_id, session)
@@ -223,7 +214,6 @@ def chat_endpoint(req: ChatRequest, guest_id: str = Depends(get_current_guest_id
         'delete_meeting': delete_meeting_wrapper
     }
     
-    # 4. Run AI
     now_str = arrow.now().format('YYYY-MM-DD HH:mm')
     model = genai.GenerativeModel(
         'gemini-2.5-flash', 
@@ -241,11 +231,17 @@ def chat_endpoint(req: ChatRequest, guest_id: str = Depends(get_current_guest_id
             func_name = fc.name
             args = dict(fc.args)
             
+            # DEBUG LOG
+            print(f" AI Calling Tool: {func_name} | Args: {args}")
+            
             if func_name in tools_map:
                 tool_result = tools_map[func_name](**args)
             else:
                 tool_result = "Error: Function not found."
-                
+            
+            # DEBUG LOG
+            print(f"Tool Result: {tool_result}")
+
             response = chat.send_message(
                 genai.protos.Content(
                     parts=[genai.protos.Part(
@@ -257,9 +253,9 @@ def chat_endpoint(req: ChatRequest, guest_id: str = Depends(get_current_guest_id
                 )
             )
         
-        # 5. Save AI Response
         save_chat_log(session, guest_id, "model", response.text)
         return {"response": response.text}
 
     except Exception as e:
+        print(f" SYSTEM CRASH: {e}")
         return {"response": f"System Error: {str(e)}"}
