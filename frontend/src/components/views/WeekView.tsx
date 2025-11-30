@@ -3,7 +3,6 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Event, CalendarSettings } from '../../App';
 import { format, startOfWeek, endOfWeek, addDays, isSameDay, addWeeks, subWeeks, getHours, getMinutes } from 'date-fns';
-import { zhCN } from 'date-fns/locale';
 
 interface WeekViewProps {
   events: Event[];
@@ -39,7 +38,7 @@ export function WeekView({ events, onDeleteEvent, onUpdateEvent, settings }: Wee
     const endHour = getHours(event.endDate);
     const endMinute = getMinutes(event.endDate);
     
-    const top = (startHour + startMinute / 60) * 60; // 每小时60px
+    const top = (startHour + startMinute / 60) * 60; // 60px per hour
     const height = ((endHour + endMinute / 60) - (startHour + startMinute / 60)) * 60;
     
     return { top, height };
@@ -47,11 +46,11 @@ export function WeekView({ events, onDeleteEvent, onUpdateEvent, settings }: Wee
 
   return (
     <div className="flex-1 flex flex-col p-6">
-      {/* 周导航 */}
+      {/* Week Navigation */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center space-x-4">
           <h2>
-            {format(weekStart, 'yyyy年M月d日', { locale: zhCN })} - {format(weekEnd, 'M月d日', { locale: zhCN })}
+            {format(weekStart, 'MMM d, yyyy')} - {format(weekEnd, 'MMM d')}
           </h2>
           <div className="flex items-center space-x-1">
             <Button
@@ -66,7 +65,7 @@ export function WeekView({ events, onDeleteEvent, onUpdateEvent, settings }: Wee
               size="sm"
               onClick={() => setCurrentDate(new Date())}
             >
-              本周
+              This Week
             </Button>
             <Button
               variant="outline"
@@ -79,9 +78,9 @@ export function WeekView({ events, onDeleteEvent, onUpdateEvent, settings }: Wee
         </div>
       </div>
 
-      {/* 周视图内容 */}
+      {/* Week View Content */}
       <div className="flex-1 flex border border-border rounded-lg overflow-hidden">
-        {/* 时间轴 */}
+        {/* Timeline */}
         <div className="w-16 bg-muted/30 border-r border-border">
           <div className="h-12 border-b border-border"></div>
           {hours.map(hour => (
@@ -91,7 +90,7 @@ export function WeekView({ events, onDeleteEvent, onUpdateEvent, settings }: Wee
           ))}
         </div>
 
-        {/* 日期列 */}
+        {/* Days Columns */}
         <div className="flex-1 grid grid-cols-7">
           {days.map((day, index) => {
             const dayEvents = getEventsForDay(day);
@@ -99,21 +98,21 @@ export function WeekView({ events, onDeleteEvent, onUpdateEvent, settings }: Wee
             
             return (
               <div key={index} className="border-r border-border last:border-r-0">
-                {/* 日期头部 */}
+                {/* Day Header */}
                 <div className={`h-12 border-b border-border flex flex-col items-center justify-center text-sm ${
                   isToday ? 'bg-primary text-primary-foreground' : 'bg-muted/30'
                 }`}>
-                  <div>{format(day, 'EEE', { locale: zhCN })}</div>
+                  <div>{format(day, 'EEE')}</div>
                   <div>{format(day, 'd')}</div>
                 </div>
 
-                {/* 时间格子和事件 */}
+                {/* Time Slots and Events */}
                 <div className="relative">
                   {hours.map(hour => (
                     <div key={hour} className="h-[60px] border-b border-border"></div>
                   ))}
                   
-                  {/* 事件 */}
+                  {/* Events */}
                   {dayEvents.map(event => {
                     const { top, height } = getEventPosition(event);
                     return (
@@ -128,7 +127,7 @@ export function WeekView({ events, onDeleteEvent, onUpdateEvent, settings }: Wee
                           border: `1px solid ${event.color}40`
                         }}
                         onClick={() => {
-                          // 这里可以添加编辑事件的逻辑
+                          // Logic to edit event can be added here
                         }}
                       >
                         <div className="truncate">{event.title}</div>
