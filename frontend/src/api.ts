@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { CalendarEvent } from './types';
 
-// IMPORTANT: Change this to your Render URL for production!
+
 const API_URL = "https://timesync-09k8.onrender.com"; 
 
 // 1. Get or Create the Guest ID
@@ -64,4 +64,5 @@ export const sendChatMessage = async (message: string, history: any[]) => {
   const data = await res.json();
   return data.response;
 };
+
 
