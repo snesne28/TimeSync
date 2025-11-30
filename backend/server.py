@@ -12,11 +12,6 @@ os.environ["GOOGLE_API_KEY"] = os.environ.get("GOOGLE_API_KEY", "")
 genai.configure(api_key=os.environ["GOOGLE_API_KEY"])
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
-if not DATABASE_URL:
-    raise ValueError(" DATABASE_URL is missing!")
-
-if DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
 # --- MODELS ---
 
@@ -27,7 +22,6 @@ class Event(SQLModel, table=True):
     start: str
     end: str
     description: Optional[str] = None
-    # REMOVED status to prevent database mismatch errors
 
 class ChatLog(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
@@ -69,7 +63,7 @@ def save_chat_log(session: Session, guest_id: str, role: str, content: str):
         session.add(log)
         session.commit()
     except Exception as e:
-        print(f"⚠️ Error saving chat log: {e}")
+        print(f" Error saving chat log: {e}")
 
 # --- 4. TOOL FUNCTIONS ---
 def read_events_db(session: Session, guest_id: str):
@@ -94,7 +88,7 @@ def check_availability(date_str: str, guest_id: str, session: Session):
     return f"Busy slots on {date_str}: {', '.join(busy_list)}."
 
 def book_meeting(start_time_iso: str, title: str, guest_id: str, session: Session):
-    print(f"📝 Attempting to book: {title} at {start_time_iso}") # DEBUG LOG
+    print(f" Attempting to book: {title} at {start_time_iso}")
     try:
         start = arrow.get(start_time_iso)
     except:
@@ -108,14 +102,13 @@ def book_meeting(start_time_iso: str, title: str, guest_id: str, session: Sessio
             start=start.isoformat(),
             end=start.shift(minutes=30).isoformat(),
             description="Booked via AI"
-            # REMOVED status assignment
         )
         session.add(new_event)
         session.commit()
-        print(f" Success! Event ID: {new_event.id}")
+        print(f"✅ Success! Event ID: {new_event.id}")
         return f"OK. Meeting '{title}' booked for {start.format('YYYY-MM-DD HH:mm')}."
     except Exception as e:
-        print(f" DATABASE ERROR: {e}") # THIS WILL SHOW IN RENDER LOGS
+        print(f" DATABASE ERROR: {e}")
         return f"Database Error: {str(e)}"
 
 def delete_meeting(title: str, date_str: str, guest_id: str, session: Session):
@@ -193,6 +186,7 @@ def chat_endpoint(req: ChatRequest, guest_id: str = Depends(get_current_guest_id
     save_chat_log(session, guest_id, "user", req.message)
     db_history = get_chat_context(session, guest_id)
 
+    # --- WRAPPERS ---
     def check_availability_wrapper(date_str: str):
         """Checks if there are any events on a specific date. Args: date_str (YYYY-MM-DD)."""
         try: return check_availability(date_str, guest_id, session)
@@ -208,6 +202,12 @@ def chat_endpoint(req: ChatRequest, guest_id: str = Depends(get_current_guest_id
         try: return delete_meeting(title, date_str, guest_id, session)
         except Exception as e: return f"Error: {str(e)}"
 
+    # --- CRITICAL FIX: Rename functions so AI uses the correct names ---
+    check_availability_wrapper.__name__ = "check_availability"
+    book_meeting_wrapper.__name__ = "book_meeting"
+    delete_meeting_wrapper.__name__ = "delete_meeting"
+
+    # Now the keys match the names Gemini sees
     tools_map = {
         'check_availability': check_availability_wrapper,
         'book_meeting': book_meeting_wrapper,
@@ -231,16 +231,14 @@ def chat_endpoint(req: ChatRequest, guest_id: str = Depends(get_current_guest_id
             func_name = fc.name
             args = dict(fc.args)
             
-            # DEBUG LOG
-            print(f" AI Calling Tool: {func_name} | Args: {args}")
+            print(f" AI Calling Tool: {func_name}") # DEBUG LOG
             
             if func_name in tools_map:
                 tool_result = tools_map[func_name](**args)
             else:
-                tool_result = "Error: Function not found."
+                tool_result = f"Error: Function '{func_name}' not found in tools map."
             
-            # DEBUG LOG
-            print(f"Tool Result: {tool_result}")
+            print(f" Tool Result: {tool_result}")
 
             response = chat.send_message(
                 genai.protos.Content(
@@ -257,5 +255,5 @@ def chat_endpoint(req: ChatRequest, guest_id: str = Depends(get_current_guest_id
         return {"response": response.text}
 
     except Exception as e:
-        print(f" SYSTEM CRASH: {e}")
+        print(f"SYSTEM CRASH: {e}")
         return {"response": f"System Error: {str(e)}"}
