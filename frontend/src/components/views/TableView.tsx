@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MoreHorizontal, ArrowUpDown, Filter } from 'lucide-react';
+import { MoreHorizontal, ArrowUpDown } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
 import { Badge } from '../ui/badge';
@@ -8,7 +8,6 @@ import { Input } from '../ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { Event } from '../../App';
 import { format } from 'date-fns';
-import { zhCN } from 'date-fns/locale';
 
 interface TableViewProps {
   events: Event[];
@@ -93,22 +92,22 @@ export function TableView({ events, onDeleteEvent, onUpdateEvent }: TableViewPro
 
   return (
     <div className="flex-1 flex flex-col p-6">
-      {/* 表格工具栏 */}
+      {/* Table Toolbar */}
       <div className="flex items-center justify-between mb-6">
-        <h2>表格视图</h2>
+        <h2>Table View</h2>
         <div className="flex items-center space-x-4">
           <Input
-            placeholder="搜索日程..."
+            placeholder="Search events..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-64"
           />
           <Select value={filterCategory} onValueChange={setFilterCategory}>
             <SelectTrigger className="w-40">
-              <SelectValue placeholder="筛选分类" />
+              <SelectValue placeholder="Filter category" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">全部分类</SelectItem>
+              <SelectItem value="all">All Categories</SelectItem>
               {categories.map(category => (
                 <SelectItem key={category} value={category}>
                   {category}
@@ -119,26 +118,26 @@ export function TableView({ events, onDeleteEvent, onUpdateEvent }: TableViewPro
         </div>
       </div>
 
-      {/* 表格 */}
+      {/* Table */}
       <div className="flex-1 border border-border rounded-lg overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead className="w-[250px]">
-                <SortButton field="title">标题</SortButton>
+                <SortButton field="title">Title</SortButton>
               </TableHead>
               <TableHead className="w-[120px]">
-                <SortButton field="category">分类</SortButton>
+                <SortButton field="category">Category</SortButton>
               </TableHead>
               <TableHead className="w-[180px]">
-                <SortButton field="startDate">开始时间</SortButton>
+                <SortButton field="startDate">Start Time</SortButton>
               </TableHead>
-              <TableHead className="w-[180px]">结束时间</TableHead>
+              <TableHead className="w-[180px]">End Time</TableHead>
               <TableHead className="w-[150px]">
-                <SortButton field="location">地点</SortButton>
+                <SortButton field="location">Location</SortButton>
               </TableHead>
-              <TableHead>描述</TableHead>
-              <TableHead className="w-[80px]">操作</TableHead>
+              <TableHead>Description</TableHead>
+              <TableHead className="w-[80px]">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -157,10 +156,10 @@ export function TableView({ events, onDeleteEvent, onUpdateEvent }: TableViewPro
                   <Badge variant="secondary">{event.category}</Badge>
                 </TableCell>
                 <TableCell>
-                  {format(event.startDate, 'yyyy-MM-dd HH:mm', { locale: zhCN })}
+                  {format(event.startDate, 'yyyy-MM-dd HH:mm')}
                 </TableCell>
                 <TableCell>
-                  {format(event.endDate, 'yyyy-MM-dd HH:mm', { locale: zhCN })}
+                  {format(event.endDate, 'yyyy-MM-dd HH:mm')}
                 </TableCell>
                 <TableCell>{event.location || '-'}</TableCell>
                 <TableCell>
@@ -176,13 +175,13 @@ export function TableView({ events, onDeleteEvent, onUpdateEvent }: TableViewPro
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem>编辑</DropdownMenuItem>
-                      <DropdownMenuItem>复制</DropdownMenuItem>
+                      <DropdownMenuItem>Edit</DropdownMenuItem>
+                      <DropdownMenuItem>Copy</DropdownMenuItem>
                       <DropdownMenuItem 
                         className="text-destructive"
                         onClick={() => onDeleteEvent(event.id)}
                       >
-                        删除
+                        Delete
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -193,9 +192,9 @@ export function TableView({ events, onDeleteEvent, onUpdateEvent }: TableViewPro
         </Table>
       </div>
 
-      {/* 统计信息 */}
+      {/* Statistics */}
       <div className="mt-4 text-sm text-muted-foreground">
-        共 {filteredAndSortedEvents.length} 个日程
+        Total {filteredAndSortedEvents.length} events
       </div>
     </div>
   );
