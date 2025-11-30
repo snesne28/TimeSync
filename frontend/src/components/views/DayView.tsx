@@ -3,7 +3,6 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Event, CalendarSettings } from '../../App';
 import { format, isSameDay, addDays, subDays, getHours, getMinutes } from 'date-fns';
-import { zhCN } from 'date-fns/locale';
 
 interface DayViewProps {
   events: Event[];
@@ -29,7 +28,7 @@ export function DayView({ events, onDeleteEvent, onUpdateEvent, settings }: DayV
     const endHour = getHours(event.endDate);
     const endMinute = getMinutes(event.endDate);
     
-    const top = (startHour + startMinute / 60) * 80; // 每小时80px
+    const top = (startHour + startMinute / 60) * 80; // 80px per hour
     const height = ((endHour + endMinute / 60) - (startHour + startMinute / 60)) * 80;
     
     return { top, height };
@@ -40,10 +39,10 @@ export function DayView({ events, onDeleteEvent, onUpdateEvent, settings }: DayV
 
   return (
     <div className="flex-1 flex flex-col p-6">
-      {/* 日期导航 */}
+      {/* Day Navigation */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center space-x-4">
-          <h2>{format(currentDate, 'yyyy年M月d日 EEEE', { locale: zhCN })}</h2>
+          <h2>{format(currentDate, 'EEEE, MMMM d, yyyy')}</h2>
           <div className="flex items-center space-x-1">
             <Button
               variant="outline"
@@ -57,7 +56,7 @@ export function DayView({ events, onDeleteEvent, onUpdateEvent, settings }: DayV
               size="sm"
               onClick={() => setCurrentDate(new Date())}
             >
-              今天
+              Today
             </Button>
             <Button
               variant="outline"
@@ -69,13 +68,13 @@ export function DayView({ events, onDeleteEvent, onUpdateEvent, settings }: DayV
           </div>
         </div>
         <div className="text-sm text-muted-foreground">
-          共 {dayEvents.length} 个日程
+          Total {dayEvents.length} events
         </div>
       </div>
 
-      {/* 日视图内容 */}
+      {/* Day View Content */}
       <div className="flex-1 flex border border-border rounded-lg overflow-hidden">
-        {/* 时间轴 */}
+        {/* Timeline */}
         <div className="w-20 bg-muted/30 border-r border-border">
           {hours.map(hour => (
             <div key={hour} className="h-[80px] border-b border-border flex items-start justify-center pt-2 text-sm text-muted-foreground">
@@ -84,14 +83,14 @@ export function DayView({ events, onDeleteEvent, onUpdateEvent, settings }: DayV
           ))}
         </div>
 
-        {/* 日程区域 */}
+        {/* Schedule Area */}
         <div className="flex-1 relative">
-          {/* 时间格子 */}
+          {/* Time Slots */}
           {hours.map(hour => (
             <div key={hour} className="h-[80px] border-b border-border hover:bg-accent/50"></div>
           ))}
           
-          {/* 现在时间线 */}
+          {/* Current Time Line */}
           {isToday && (
             <div
               className="absolute left-0 right-0 border-t-2 border-red-500 z-20"
@@ -103,7 +102,7 @@ export function DayView({ events, onDeleteEvent, onUpdateEvent, settings }: DayV
             </div>
           )}
           
-          {/* 事件 */}
+          {/* Events */}
           {dayEvents.map(event => {
             const { top, height } = getEventPosition(event);
             return (
@@ -117,7 +116,7 @@ export function DayView({ events, onDeleteEvent, onUpdateEvent, settings }: DayV
                   border: `2px solid ${event.color}40`
                 }}
                 onClick={() => {
-                  // 这里可以添加编辑事件的逻辑
+                  // Logic to edit event can be added here
                 }}
               >
                 <div className="font-medium text-sm" style={{ color: event.color }}>
