@@ -1,6 +1,6 @@
 # 📅 TimeSync: AI Scheduler Agent
 
-**TimeSync** is an intelligent scheduling assistant that allows users to check availability, book meetings, and manage their calendar using natural language. It features a guest-mode architecture, ensuring that every user gets a private, isolated calendar session without requiring a Google login.
+**TimeSync** is an intelligent scheduling assistant that allows users to check availability, book meetings, and manage their calendar using natural language. It features a guest-mode architecture, ensuring that every user gets a private, isolated calendar session.
 
 ## 🚀 Overview
 
