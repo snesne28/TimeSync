@@ -45,9 +45,9 @@ export function WeekView({ events, onDeleteEvent, onUpdateEvent, settings }: Wee
   };
 
   return (
-    <div className="flex-1 flex flex-col p-6">
+    <div className="flex-1 flex flex-col p-6 h-full"> {/* Added h-full to ensure it fills space */}
       {/* Week Navigation */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 flex-shrink-0"> {/* flex-shrink-0 prevents header squishing */}
         <div className="flex items-center space-x-4">
           <h2>
             {format(weekStart, 'MMM d, yyyy')} - {format(weekEnd, 'MMM d')}
@@ -79,10 +79,13 @@ export function WeekView({ events, onDeleteEvent, onUpdateEvent, settings }: Wee
       </div>
 
       {/* Week View Content */}
-      <div className="flex-1 flex border border-border rounded-lg overflow-hidden">
-        {/* Timeline */}
+      {/* CHANGED: overflow-hidden -> overflow-y-auto to allow scrolling */}
+      <div className="flex-1 flex border border-border rounded-lg overflow-y-auto bg-zinc-950">
+        
+        {/* Timeline Column */}
         <div className="w-16 bg-muted/30 border-r border-border">
-          <div className="h-12 border-b border-border"></div>
+          {/* CHANGED: Added sticky, top-0, z-20, and bg-zinc-950 */}
+          <div className="h-12 border-b border-border sticky top-0 bg-zinc-950 z-20"></div>
           {hours.map(hour => (
             <div key={hour} className="h-[60px] border-b border-border flex items-start justify-center pt-1 text-xs text-muted-foreground">
               {hour === 0 ? '00:00' : `${hour.toString().padStart(2, '0')}:00`}
@@ -99,8 +102,9 @@ export function WeekView({ events, onDeleteEvent, onUpdateEvent, settings }: Wee
             return (
               <div key={index} className="border-r border-border last:border-r-0">
                 {/* Day Header */}
-                <div className={`h-12 border-b border-border flex flex-col items-center justify-center text-sm ${
-                  isToday ? 'bg-primary text-primary-foreground' : 'bg-muted/30'
+                {/* CHANGED: Added sticky, top-0, z-10. Swapped transparent bg-muted/30 for solid bg-zinc-950 */}
+                <div className={`h-12 border-b border-border flex flex-col items-center justify-center text-sm sticky top-0 z-10 ${
+                  isToday ? 'bg-primary text-primary-foreground' : 'bg-zinc-950'
                 }`}>
                   <div>{format(day, 'EEE')}</div>
                   <div>{format(day, 'd')}</div>
