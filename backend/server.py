@@ -255,6 +255,11 @@ def chat_endpoint(
     CRITICAL RULES:
     1. When user says "today", use the Current Time ({user_tz}).
     2. When booking, always infer the timezone offset for {user_tz}.
+
+    OUTPUT RULES:
+    - In your final response to the user, NEVER mention 'UTC', 'ISO', or the '+05:30' offset.
+    - Always format dates naturally (e.g., "Monday, December 1st at 2:00 PM").
+    - Use the exact confirmation message returned by the tool if possible.
     """
 
     model = genai.GenerativeModel(
@@ -295,4 +300,5 @@ def chat_endpoint(
     except Exception as e:
         print(f" SYSTEM CRASH: {e}")
         return {"response": f"System Error: {str(e)}"}
+
 
