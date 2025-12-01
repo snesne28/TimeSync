@@ -16,9 +16,13 @@ const getGuestId = () => {
 
 // 2. Helper for Headers
 const getHeaders = () => {
+  // 1. Detect User's Timezone automatically from browser
+  const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  
   return {
     'Content-Type': 'application/json',
-    'X-Guest-ID': getGuestId(), // This ensures every request is for THIS user
+    'X-Guest-ID': getGuestId(),
+    'X-User-Timezone': userTimezone, 
   };
 };
 
@@ -64,5 +68,6 @@ export const sendChatMessage = async (message: string, history: any[]) => {
   const data = await res.json();
   return data.response;
 };
+
 
 
