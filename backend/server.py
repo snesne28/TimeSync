@@ -12,6 +12,11 @@ os.environ["GOOGLE_API_KEY"] = os.environ.get("GOOGLE_API_KEY", "")
 genai.configure(api_key=os.environ["GOOGLE_API_KEY"])
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
+if not DATABASE_URL:
+    raise ValueError(" DATABASE_URL is missing!")
+
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
 # --- MODELS ---
 
@@ -55,7 +60,7 @@ def get_chat_context(session: Session, guest_id: str, limit: int = 10):
             history.append({"role": log.role, "parts": [log.content]})
         return history
     except Exception as e:
-        print(f" Error fetching history: {e}")
+        print(f"Error fetching history: {e}")
         return []
 
 def save_chat_log(session: Session, guest_id: str, role: str, content: str):
@@ -98,18 +103,12 @@ def check_availability(date_str: str, guest_id: str, session: Session):
     return f"Busy slots on {date_str} (IST): {', '.join(busy_list)}."
 
 def book_meeting(start_time_iso: str, title: str, guest_id: str, session: Session):
-    print(f"📝 Attempting to book: {title} at {start_time_iso}")
+    print(f" Attempting to book: {title} at {start_time_iso}")
     try:
-        # Force Arrow to parse the time. If AI sends offset, Arrow respects it.
-        # If AI sends naive time, we assume 'Asia/Kolkata' to fix the bug.
         start = arrow.get(start_time_iso)
-        
-        # If the AI forgot the timezone info, force it to IST
         if start.tzinfo is None:
              start = start.replace(tzinfo='Asia/Kolkata')
-             
     except:
-        print(f" Date Parse Error: {start_time_iso}")
         return f"Invalid time format: {start_time_iso}"
     
     try:
@@ -123,35 +122,49 @@ def book_meeting(start_time_iso: str, title: str, guest_id: str, session: Sessio
         )
         session.add(new_event)
         session.commit()
-        print(f"Success! Event ID: {new_event.id}")
+        print(f" Success! Event ID: {new_event.id}")
         return f"OK. Meeting '{title}' booked for {start.format('YYYY-MM-DD HH:mm ZZZ')}."
     except Exception as e:
         session.rollback()
         print(f" DATABASE ERROR: {e}")
         return f"Database Error: {str(e)}"
 
-def delete_meeting(title: str, date_str: str, guest_id: str, session: Session):
+# [UPGRADED] Bulk Delete Function
+def cancel_meetings(start_date_str: str, end_date_str: str, title_keyword: Optional[str], guest_id: str, session: Session):
     try:
-        target_day = arrow.get(date_str).to('Asia/Kolkata').floor('day')
+        # Parse range (start of first day to end of last day)
+        range_start = arrow.get(start_date_str).to('Asia/Kolkata').floor('day')
+        range_end = arrow.get(end_date_str).to('Asia/Kolkata').ceil('day')
     except:
-        return "Invalid date format."
+        return "Invalid date format. Please use ISO (YYYY-MM-DD)."
     
     events = read_events_db(session, guest_id)
     events_to_delete = []
     
     for event in events:
-        start = arrow.get(event.start).to('Asia/Kolkata')
-        if start.floor('day') == target_day and title.lower() in event.summary.lower():
+        event_start = arrow.get(event.start).to('Asia/Kolkata')
+        
+        # Check if event is within the date range
+        in_range = range_start <= event_start <= range_end
+        
+        # Check title (if provided)
+        title_match = True
+        if title_keyword and title_keyword.lower() != "none":
+            if title_keyword.lower() not in event.summary.lower():
+                title_match = False
+        
+        if in_range and title_match:
             events_to_delete.append(event)
             
     if not events_to_delete:
-        return f"No meeting found with title '{title}' on {date_str}."
+        return f"No meetings found between {start_date_str} and {end_date_str} matching your criteria."
     
+    count = len(events_to_delete)
     for event in events_to_delete:
         session.delete(event)
     
     session.commit()
-    return f"OK. Canceled {len(events_to_delete)} meeting(s)."
+    return f"OK. Canceled {count} meeting(s) between {start_date_str} and {end_date_str}."
 
 # --- 5. SERVER SETUP ---
 app = FastAPI()
@@ -203,13 +216,13 @@ class ChatRequest(BaseModel):
 
 @app.post("/chat")
 def chat_endpoint(req: ChatRequest, guest_id: str = Depends(get_current_guest_id), session: Session = Depends(get_session)):
-
+    # 1. Get History First (Avoids duplication)
     db_history = get_chat_context(session, guest_id)
-
-    # [FIX]  Save User Input to DB
+    
+    # 2. Save User Input
     save_chat_log(session, guest_id, "user", req.message)
 
-    # --- WRAPPERS (Keep as is) ---
+    # --- WRAPPERS ---
     def check_availability_wrapper(date_str: str):
         """Checks if there are any events on a specific date. Args: date_str (YYYY-MM-DD)."""
         try: return check_availability(date_str, guest_id, session)
@@ -217,37 +230,48 @@ def chat_endpoint(req: ChatRequest, guest_id: str = Depends(get_current_guest_id
         
     def book_meeting_wrapper(start_time_iso: str, title: str):
         """Books a new meeting. Args: start_time_iso (ISO 8601), title."""
-        # [OPTIONAL] Extra safety: Strip whitespace
         clean_title = title.strip()
         try: return book_meeting(start_time_iso, clean_title, guest_id, session)
         except Exception as e: return f"Error: {str(e)}"
 
-    def delete_meeting_wrapper(title: str, date_str: str):
-        """Cancels a meeting. Args: title (keyword), date_str (YYYY-MM-DD)."""
-        try: return delete_meeting(title, date_str, guest_id, session)
+    def cancel_meetings_wrapper(start_date_str: str, end_date_str: str, title_keyword: str = None):
+        """Cancels meetings within a date range.
+        
+        Args:
+            start_date_str: Start of the range (YYYY-MM-DD).
+            end_date_str: End of the range (YYYY-MM-DD). Use same as start for a single day.
+            title_keyword: (Optional) Only delete meetings containing this text. If None, deletes ALL meetings in range.
+        """
+        try: return cancel_meetings(start_date_str, end_date_str, title_keyword, guest_id, session)
         except Exception as e: return f"Error: {str(e)}"
 
-    # --- Rename Functions for Gemini ---
+    # --- RENAME FOR AI ---
     check_availability_wrapper.__name__ = "check_availability"
     book_meeting_wrapper.__name__ = "book_meeting"
-    delete_meeting_wrapper.__name__ = "delete_meeting"
+    cancel_meetings_wrapper.__name__ = "cancel_meetings"
 
     tools_map = {
         'check_availability': check_availability_wrapper,
         'book_meeting': book_meeting_wrapper,
-        'delete_meeting': delete_meeting_wrapper
+        'cancel_meetings': cancel_meetings_wrapper
     }
     
-    # IST Time Context
+    # IST Time Context & Advanced Instructions
     now_str = arrow.now('Asia/Kolkata').format('YYYY-MM-DD HH:mm')
     
     system_instruction = f"""
     You are a scheduler assistant operating in India (IST Timezone). 
     Current time: {now_str} (IST).
     
-    CRITICAL RULES:
-    1. When calling 'book_meeting', you MUST include the timezone offset '+05:30' in the ISO timestamp.
-    2. Use the EXACT title the user provides. Do not repeat words.
+    RULES:
+    1. When booking, use timezone offset '+05:30'.
+    2. Do not repeat the user's title in your confirmation.
+    
+    HOW TO CANCEL MEETINGS:
+    - If user says "Cancel meeting X on [Date]", set start_date_str and end_date_str to [Date].
+    - If user says "Cancel all meetings today", set start and end to Today's date, title_keyword=None.
+    - If user says "Clear my calendar for the week", set start to Monday and end to Sunday.
+    - If user says "Delete EVERYTHING", set start='1900-01-01' and end='3000-01-01'.
     """
 
     model = genai.GenerativeModel(
@@ -256,11 +280,9 @@ def chat_endpoint(req: ChatRequest, guest_id: str = Depends(get_current_guest_id
         system_instruction=system_instruction
     )
     
-    # Start chat with history (that excludes the current message)
     chat = model.start_chat(history=db_history)
     
     try:
-        # Send the current message
         response = chat.send_message(req.message)
         
         while response.parts and response.parts[0].function_call:
@@ -294,5 +316,3 @@ def chat_endpoint(req: ChatRequest, guest_id: str = Depends(get_current_guest_id
     except Exception as e:
         print(f"SYSTEM CRASH: {e}")
         return {"response": f"System Error: {str(e)}"}
-
-
