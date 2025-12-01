@@ -119,7 +119,7 @@ def book_meeting(start_time_iso: str, title: str, guest_id: str, session: Sessio
         )
         session.add(new_event)
         session.commit()
-        return f"OK. Meeting '{title}' booked for {start.format('YYYY-MM-DD HH:mm ZZZ')}."
+        return f"OK. Meeting '{title}' booked for {start.format('dddd, MMMM Do [at] h:mm A')}."
     except Exception as e:
         session.rollback()
         return f"Database Error: {str(e)}"
@@ -295,3 +295,4 @@ def chat_endpoint(
     except Exception as e:
         print(f" SYSTEM CRASH: {e}")
         return {"response": f"System Error: {str(e)}"}
+
