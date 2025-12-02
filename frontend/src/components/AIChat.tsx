@@ -1,12 +1,16 @@
-import 'regenerator-runtime/runtime'; 
 import { useState, useRef, useEffect } from 'react';
 import { Send, Sparkles, Loader2, Mic, MicOff, Volume2, VolumeX } from 'lucide-react';
-import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
 import { ChatMessage as ChatMessageComponent } from './ChatMessage';
 import { ChatMessage } from '../types';
 
 interface AIChatProps {
   onSendMessage: (message: string) => Promise<string>;
+}
+
+// 1. Define the Native Speech API type
+interface IWindow extends Window {
+  webkitSpeechRecognition: any;
+  SpeechRecognition: any;
 }
 
 export function AIChat({ onSendMessage }: AIChatProps) {
@@ -21,46 +25,83 @@ export function AIChat({ onSendMessage }: AIChatProps) {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isVoiceEnabled, setIsVoiceEnabled] = useState(true);
+  const [isListening, setIsListening] = useState(false); // Manually track listening
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const recognitionRef = useRef<any>(null); // Store the speech engine
 
-  // --- SPEECH RECOGNITION HOOK ---
-  const {
-    transcript,
-    listening,
-    resetTranscript,
-    browserSupportsSpeechRecognition,
-    isMicrophoneAvailable
-  } = useSpeechRecognition();
-
-  // [FIX] Sync Transcript to Input Field in Real-Time
+  // --- 2. INITIALIZE NATIVE SPEECH ENGINE ---
   useEffect(() => {
-    if (listening) {
-      setInput(transcript);
+    const { webkitSpeechRecognition } = window as unknown as IWindow;
+    
+    if (!webkitSpeechRecognition) {
+      console.error(" Web Speech API is NOT supported in this browser.");
+      return;
     }
-  }, [transcript, listening]);
 
-  // [DEBUG] Log microphone status
-  useEffect(() => {
-    if (!browserSupportsSpeechRecognition) {
-      console.error("Browser does not support speech recognition.");
-    }
-    if (!isMicrophoneAvailable) {
-      console.log("Waiting for microphone permission...");
-    }
-  }, [browserSupportsSpeechRecognition, isMicrophoneAvailable]);
+    const recognition = new webkitSpeechRecognition();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
 
-  // --- HANDLERS ---
+    // EVENT: When mic actually starts
+    recognition.onstart = () => {
+      console.log(" Mic is OPEN");
+      setIsListening(true);
+    };
+
+    // EVENT: When mic stops
+    recognition.onend = () => {
+      console.log(" Mic is CLOSED");
+      setIsListening(false);
+    };
+
+    // EVENT: When speech is detected
+    recognition.onresult = (event: any) => {
+      let finalTranscript = '';
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        if (event.results[i].isFinal) {
+          finalTranscript += event.results[i][0].transcript;
+        } else {
+          // You can handle interim results here if you want real-time preview
+          finalTranscript += event.results[i][0].transcript;
+        }
+      }
+      // Update Input
+      if (finalTranscript) {
+        console.log("Heard:", finalTranscript);
+        setInput(finalTranscript);
+      }
+    };
+
+    // EVENT: Errors
+    recognition.onerror = (event: any) => {
+      console.error("⚠️ Speech Error:", event.error);
+      if (event.error === 'not-allowed') {
+        alert("Microphone access denied! Please allow permissions in browser settings.");
+      }
+      setIsListening(false);
+    };
+
+    recognitionRef.current = recognition;
+  }, []);
+
+  // --- 3. HANDLERS ---
 
   const handleMicClick = () => {
-    if (listening) {
-      SpeechRecognition.stopListening();
-      console.log("Mic Stopped");
+    if (!recognitionRef.current) {
+        alert("Your browser does not support Speech Recognition. Try Google Chrome.");
+        return;
+    }
+
+    if (isListening) {
+      recognitionRef.current.stop();
     } else {
-      // Clear previous speech before starting
-      resetTranscript(); 
-      setInput(''); 
-      SpeechRecognition.startListening({ continuous: true, language: 'en-US' });
-      console.log("Mic Started - Speak now!");
+      try {
+        recognitionRef.current.start();
+      } catch (err) {
+        console.error("Start error (usually harmless if already started):", err);
+      }
     }
   };
 
@@ -75,8 +116,8 @@ export function AIChat({ onSendMessage }: AIChatProps) {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
 
-    if (listening) {
-      SpeechRecognition.stopListening();
+    if (isListening && recognitionRef.current) {
+      recognitionRef.current.stop();
     }
 
     const userMessage: ChatMessage = {
@@ -88,7 +129,6 @@ export function AIChat({ onSendMessage }: AIChatProps) {
 
     setMessages(prev => [...prev, userMessage]);
     setInput('');
-    resetTranscript();
     setIsLoading(true);
 
     try {
@@ -118,10 +158,6 @@ export function AIChat({ onSendMessage }: AIChatProps) {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
-
-  if (!browserSupportsSpeechRecognition) {
-    return <div className="p-4 text-red-500">Browser does not support speech recognition. Please use Chrome.</div>;
-  }
 
   return (
     <div className="flex flex-col h-full bg-zinc-950 border-l border-zinc-800">
@@ -169,53 +205,3 @@ export function AIChat({ onSendMessage }: AIChatProps) {
         )}
         <div ref={messagesEndRef} />
       </div>
-
-      {/* Input Area */}
-      <div className="p-6 border-t border-zinc-800 relative">
-        
-        {/* [NEW] Visual Indicator: Only shows when Listening */}
-        {listening && (
-          <div className="absolute -top-8 left-6 flex items-center gap-2 bg-red-500/10 text-red-500 px-3 py-1 rounded-full text-xs font-medium animate-pulse border border-red-500/20">
-            <div className="w-2 h-2 bg-red-500 rounded-full animate-ping" />
-            Listening... Say "Book a meeting"
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="relative flex items-center gap-2">
-          <div className="relative flex-1">
-            <input
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder={listening ? "Listening..." : "Ask me to schedule a meeting..."}
-                disabled={isLoading}
-                className={`w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 pr-12 text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all disabled:opacity-50 ${listening ? 'ring-2 ring-red-500/50 border-red-500/50' : ''}`}
-            />
-            
-            {/* Mic Button */}
-            <button
-                type="button"
-                onClick={handleMicClick}
-                disabled={isLoading}
-                className={`absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-lg transition-colors ${
-                    listening 
-                    ? 'text-red-500 bg-red-500/10 hover:bg-red-500/20' 
-                    : 'text-zinc-400 hover:text-white hover:bg-zinc-800'
-                }`}
-            >
-                {listening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
-            </button>
-          </div>
-
-          <button
-            type="submit"
-            disabled={!input.trim() || isLoading}
-            className="p-3 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
-          >
-            <Send className="w-4 h-4" />
-          </button>
-        </form>
-      </div>
-    </div>
-  );
-}
