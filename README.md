@@ -110,7 +110,6 @@ npm run dev
 * **User Authentication:** Replace the Guest ID system with real OAuth (Google/GitHub Login) to allow users to access their calendar across multiple devices.
 * **External Sync:** Integrate the Google Calendar API (Service Account) to sync these database events with a real Google Calendar.
 * **Conflict Resolution:** Improve the AI's logic to suggest alternative times when a slot is double-booked.
-* **Voice Interface:** Add speech-to-text to allow users to speak their scheduling requests.
 
   ## OUTPUT
 
