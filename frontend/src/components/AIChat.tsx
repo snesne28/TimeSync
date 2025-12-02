@@ -29,109 +29,31 @@ export function AIChat({ onSendMessage }: AIChatProps) {
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<any>(null);
+  
+  // Ref to hold the latest messages state to avoid closure staleness in event listeners
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
 
-  // --- INITIALIZE NATIVE SPEECH ENGINE ---
-  useEffect(() => {
-    // Check for browser support (Chrome/Edge use webkit prefix)
-    const { webkitSpeechRecognition } = window as unknown as IWindow;
-    
-    if (!webkitSpeechRecognition) {
-      console.error("Web Speech API is NOT supported in this browser.");
-      return;
-    }
+  // --- 1. CORE SEND LOGIC ---
+  // We extract this so both the Form and the Voice engine can use it
+  const processMessage = async (textToSend: string) => {
+    if (!textToSend.trim() || isLoading) return;
 
-    const recognition = new webkitSpeechRecognition();
-    recognition.continuous = true;     // Keep listening even after pauses
-    recognition.interimResults = true; // Show results while speaking
-    recognition.lang = 'en-US';
-
-    recognition.onstart = () => {
-      console.log("Mic is OPEN");
-      setIsListening(true);
-    };
-
-    recognition.onend = () => {
-      console.log("Mic is CLOSED");
-      setIsListening(false);
-    };
-
-    recognition.onresult = (event: any) => {
-      let finalTranscript = '';
-      
-      // Loop through results to build the string
-      for (let i = event.resultIndex; i < event.results.length; ++i) {
-        if (event.results[i].isFinal) {
-          finalTranscript += event.results[i][0].transcript;
-        } else {
-          // You could handle interim results here if you want
-          finalTranscript += event.results[i][0].transcript;
-        }
-      }
-
-      if (finalTranscript) {
-        console.log("Heard:", finalTranscript);
-        setInput(finalTranscript);
-      }
-    };
-
-    recognition.onerror = (event: any) => {
-      console.error("Speech Error:", event.error);
-      if (event.error === 'not-allowed') {
-        alert("Microphone access denied! Please allow permissions in browser settings.");
-      }
-      setIsListening(false);
-    };
-
-    recognitionRef.current = recognition;
-  }, []);
-
-  // --- HANDLERS ---
-
-  const handleMicClick = () => {
-    if (!recognitionRef.current) {
-        alert("Your browser does not support Speech Recognition. Please try Google Chrome.");
-        return;
-    }
-
-    if (isListening) {
-      recognitionRef.current.stop();
-    } else {
-      try {
-        recognitionRef.current.start();
-      } catch (err) {
-        console.error("Start error (likely already started):", err);
-      }
-    }
-  };
-
-  const speak = (text: string) => {
-    if (!isVoiceEnabled || !('speechSynthesis' in window)) return;
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    window.speechSynthesis.speak(utterance);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input.trim() || isLoading) return;
-
-    if (isListening && recognitionRef.current) {
-      recognitionRef.current.stop();
-    }
-
+    // Add User Message
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
       role: 'user',
-      content: input,
+      content: textToSend,
       timestamp: new Date(),
     };
 
+    // Update State (Using functional update for safety)
     setMessages(prev => [...prev, userMessage]);
     setInput('');
     setIsLoading(true);
 
     try {
-      const responseText = await onSendMessage(input);
+      const responseText = await onSendMessage(textToSend);
       
       const aiResponse: ChatMessage = {
         id: (Date.now() + 1).toString(),
@@ -150,6 +72,107 @@ export function AIChat({ onSendMessage }: AIChatProps) {
     }
   };
 
+  // Create a ref for the process function so the useEffect can access the latest version
+  const processMessageRef = useRef(processMessage);
+  processMessageRef.current = processMessage;
+
+  // --- 2. INITIALIZE NATIVE SPEECH ENGINE ---
+  useEffect(() => {
+    const { webkitSpeechRecognition } = window as unknown as IWindow;
+    
+    if (!webkitSpeechRecognition) {
+      console.error("Web Speech API is NOT supported in this browser.");
+      return;
+    }
+
+    const recognition = new webkitSpeechRecognition();
+    // [CHANGE] continuous: false = Stop automatically when silence is detected
+    recognition.continuous = false;     
+    recognition.interimResults = true; 
+    recognition.lang = 'en-US';
+
+    // Temporary storage for the current phrase
+    let finalTranscript = '';
+
+    recognition.onstart = () => {
+      console.log("Mic is OPEN");
+      setIsListening(true);
+      finalTranscript = ''; // Reset on start
+    };
+
+    recognition.onend = () => {
+      console.log("Mic is CLOSED");
+      setIsListening(false);
+      
+      // [CHANGE] Auto-Submit if we caught any text
+      if (finalTranscript.trim()) {
+        console.log("Auto-submitting:", finalTranscript);
+        processMessageRef.current(finalTranscript);
+      }
+    };
+
+    recognition.onresult = (event: any) => {
+      let interimTranscript = '';
+      
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        if (event.results[i].isFinal) {
+          finalTranscript += event.results[i][0].transcript;
+        } else {
+          interimTranscript += event.results[i][0].transcript;
+        }
+      }
+
+      // Update UI with what is being said currently
+      if (finalTranscript || interimTranscript) {
+        setInput(finalTranscript || interimTranscript);
+      }
+    };
+
+    recognition.onerror = (event: any) => {
+      console.error("Speech Error:", event.error);
+      setIsListening(false);
+    };
+
+    recognitionRef.current = recognition;
+  }, []);
+
+  // --- 3. HANDLERS ---
+
+  const handleMicClick = () => {
+    if (!recognitionRef.current) {
+        alert("Your browser does not support Speech Recognition. Please try Google Chrome.");
+        return;
+    }
+
+    if (isListening) {
+      recognitionRef.current.stop(); // This will trigger onend -> Auto Submit
+    } else {
+      setInput(''); // Clear input box for new speech
+      try {
+        recognitionRef.current.start();
+      } catch (err) {
+        console.error("Start error:", err);
+      }
+    }
+  };
+
+  const speak = (text: string) => {
+    if (!isVoiceEnabled || !('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    // If user hits enter while mic is on, stop mic (which triggers submit)
+    if (isListening && recognitionRef.current) {
+      recognitionRef.current.stop();
+      return; 
+    }
+    processMessage(input);
+  };
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -158,7 +181,7 @@ export function AIChat({ onSendMessage }: AIChatProps) {
     scrollToBottom();
   }, [messages]);
 
-  // --- RENDER UI ---
+  // --- 4. RENDER UI ---
   return (
     <div className="flex flex-col h-full bg-zinc-950 border-l border-zinc-800">
       {/* Header */}
@@ -216,7 +239,7 @@ export function AIChat({ onSendMessage }: AIChatProps) {
         {isListening && (
           <div className="absolute -top-8 left-6 flex items-center gap-2 bg-red-500/10 text-red-500 px-3 py-1 rounded-full text-xs font-medium animate-pulse border border-red-500/20">
             <div className="w-2 h-2 bg-red-500 rounded-full animate-ping" />
-            Listening...
+            Listening... (Auto-submit on pause)
           </div>
         )}
 
