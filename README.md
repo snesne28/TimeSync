@@ -1,35 +1,50 @@
 # 📅 TimeSync: AI Scheduler Agent
 
-**TimeSync** is an intelligent scheduling assistant that allows users to check availability, book meetings, and manage their calendar using natural language. It features a guest-mode architecture, ensuring that every user gets a private, isolated calendar session.
+**TimeSync** is an intelligent scheduling assistant that allows users to check availability, book meetings, and manage their calendar using natural language or voice commands. It features a guest-mode architecture, ensuring that every user gets a private, isolated calendar session without requiring a Google login.
 
 ## 🚀 Overview
 
-This project implements a full-stack AI Agent using a **React** frontend and a **FastAPI** backend. It leverages **Google's Gemini 2.5 Flash** model to interpret natural language requests (e.g., *"Book a meeting for lunch tomorrow"*) and converts them into structured database transactions.
+This project implements a full-stack AI Agent using a **React** frontend and a **FastAPI** backend. It uses **Google's Gemini 2.5 Flash** model to interpret natural language requests (e.g., "Book a meeting for lunch tomorrow") and converts them into structured database transactions.
 
 ## ✨ Features
 
-* **Natural Language Scheduling:** Chat with an AI to book, query, and manage events naturally.
-* **Contextual Memory:** The agent maintains conversation history (e.g., remembering a date mentioned in a previous message).
+* **Natural Language Scheduling:** Chat with an AI to book, query, and manage events.
+* **Voice Assistant:** Speak directly to the agent to issue commands using the integrated microphone button (Speech-to-Text) and hear audio responses (Text-to-Speech).
+* **Contextual Memory:** The agent remembers previous turns in the conversation (e.g., referencing a date mentioned earlier).
+* **Global Timezone Support:** Automatically detects the user's location (e.g., Amsterdam, India, New York) and handles booking times in their local timezone.
 * **Guest Mode (Privacy):** Uses a UUID-based system to give every device a unique, isolated calendar database. No user login required.
-* **Persistent Storage:** Events and chat history are stored in **PostgreSQL** (Production) or **SQLite** (Local).
+* **Persistent Storage:** Events and chat history are stored in a PostgreSQL database.
 * **Real-time UI:** The calendar grid updates instantly after the AI confirms an action.
-* **Responsive Design:** Fully responsive interface built with Tailwind CSS.
+
+##  Limitations
+
+* **Browser Compatibility (Voice):** The Voice Assistant relies on the native **Web Speech API**. It works best in **Google Chrome** or **Microsoft Edge**. Firefox and Safari may have limited support.
+* **Region Latency:** The backend is hosted in Singapore (Render). Users in far-away regions might experience a slight delay in AI responses due to "Cold Starts" on the free tier.
+* **Browser-Based Identity:** "Guest Mode" relies on browser local storage. If a user clears their cache, they lose access to their previous calendar events.
+* **No Email Notifications:** The system currently books events in the database but does not send email invites (e.g., via SMTP).
 
 ## 🛠️ Tech Stack
 
-### Frontend
-* **Framework:** React + Vite (Fast, modern UI)
-* **Language:** TypeScript (Type safety)
-* **Styling:** Tailwind CSS
-* **Hosting:** Vercel
+**Frontend:**
+* **React + Vite:** For a fast, modern UI.
+* **TypeScript:** For type safety.
+* **Tailwind CSS:** For styling.
+* **Web Speech API:** For native, browser-based Speech-to-Text and Text-to-Speech.
+* **Vercel:** Hosting provider.
 
-### Backend
-* **Framework:** Python + FastAPI (High-performance API)
-* **Database ORM:** SQLModel (SQLAlchemy)
-* **AI Model:** Google Gemini API (Natural language understanding)
-* **Database:** PostgreSQL (Production) / SQLite (Local)
-* **Hosting:** Render
+**Backend:**
+* **Python + FastAPI:** High-performance API framework.
+* **SQLModel (SQLAlchemy):** ORM for database interactions.
+* **Google Gemini API:** The "Brain" for natural language understanding.
+* **Render:** Backend & Database hosting.
+* **PostgreSQL:** Production database.
 
+## ⚙️ Setup & Run Instructions
+
+### Prerequisites
+* Node.js (v18+)
+* Python (v3.9+)
+* A Google Gemini API Key
 ## Architecture Overview
 
 <img width="2816" height="1536" alt="architecture_diagram" src="https://github.com/user-attachments/assets/0b5e164d-de88-4fba-9abb-a0e81dc3caf2" />
