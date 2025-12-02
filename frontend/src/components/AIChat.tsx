@@ -29,10 +29,10 @@ export function AIChat({ onSendMessage }: AIChatProps) {
     listening,
     resetTranscript,
     browserSupportsSpeechRecognition,
-    isMicrophoneAvailable // <--- Check this
+    isMicrophoneAvailable
   } = useSpeechRecognition();
 
-  // Add this debugging useEffect
+  // Debugging logs for microphone issues
   useEffect(() => {
     if (!browserSupportsSpeechRecognition) {
       console.error("Browser does not support speech recognition.");
@@ -42,7 +42,16 @@ export function AIChat({ onSendMessage }: AIChatProps) {
     }
   }, [browserSupportsSpeechRecognition, isMicrophoneAvailable]);
   
-  // Update the handleMicClick 
+  // Sync Voice Input with Text Box
+  useEffect(() => {
+    if (transcript) {
+      setInput(transcript);
+    }
+  }, [transcript]);
+
+  // --- HANDLERS ---
+
+  // 1. Handle Mic Click (Fixed: Only ONE definition now)
   const handleMicClick = () => {
     if (listening) {
       SpeechRecognition.stopListening();
@@ -53,6 +62,7 @@ export function AIChat({ onSendMessage }: AIChatProps) {
       console.log("Started listening...");
     }
   };
+
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -61,21 +71,19 @@ export function AIChat({ onSendMessage }: AIChatProps) {
     scrollToBottom();
   }, [messages]);
 
-  // --- VOICE OUTPUT (Text-to-Speech) ---
+  // 2. Voice Output (Text-to-Speech)
   const speak = (text: string) => {
     if (!isVoiceEnabled || !('speechSynthesis' in window)) return;
     
-    // Cancel any current speech
+    // Cancel any current speech to avoid overlap
     window.speechSynthesis.cancel();
 
     const utterance = new SpeechSynthesisUtterance(text);
-    // Optional: Select a specific voice if desired
-    // const voices = window.speechSynthesis.getVoices();
-    // utterance.voice = voices[0]; 
-    
+    // Optional: You can list voices with window.speechSynthesis.getVoices() and select one
     window.speechSynthesis.speak(utterance);
   };
 
+  // 3. Handle Submit
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
