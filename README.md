@@ -30,6 +30,10 @@ This project implements a full-stack AI Agent using a **React** frontend and a *
 * **Database:** PostgreSQL (Production) / SQLite (Local)
 * **Hosting:** Render
 
+## Architecture Overview
+
+<img width="2816" height="1536" alt="architecture_diagram" src="https://github.com/user-attachments/assets/0b5e164d-de88-4fba-9abb-a0e81dc3caf2" />
+
 ## ⚙️ Setup & Run Instructions
 
 ### Prerequisites
