@@ -1,11 +1,11 @@
-// src/components/AIChat.tsx
 import { useState, useRef, useEffect } from 'react';
-import { Send, Sparkles, Loader2 } from 'lucide-react';
+import { Send, Sparkles, Loader2, Mic, MicOff, Volume2, VolumeX } from 'lucide-react';
+import 'regenerator-runtime/runtime'; // Required for speech recognition
+import SpeechRecognition, { useSpeechRecognition } from 'react-speech-recognition';
 import { ChatMessage as ChatMessageComponent } from './ChatMessage';
-import { ChatMessage } from '../types'; // Adjusted import path to match your structure
+import { ChatMessage } from '../types';
 
 interface AIChatProps {
-  // CHANGED: This now expects to return a string (the AI's answer)
   onSendMessage: (message: string) => Promise<string>;
 }
 
@@ -14,13 +14,29 @@ export function AIChat({ onSendMessage }: AIChatProps) {
     {
       id: '1',
       role: 'assistant',
-      content: 'Hello! I\'m your AI scheduling assistant. I can help you schedule meetings or check your calendar. What would you like to do?',
+      content: 'Hello! I\'m your AI scheduling assistant. You can type or speak to me!',
       timestamp: new Date(),
     },
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isVoiceEnabled, setIsVoiceEnabled] = useState(true); // Toggle for TTS
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Speech Recognition Hooks
+  const {
+    transcript,
+    listening,
+    resetTranscript,
+    browserSupportsSpeechRecognition
+  } = useSpeechRecognition();
+
+  // Sync Voice Input with Text Box
+  useEffect(() => {
+    if (transcript) {
+      setInput(transcript);
+    }
+  }, [transcript]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -30,11 +46,39 @@ export function AIChat({ onSendMessage }: AIChatProps) {
     scrollToBottom();
   }, [messages]);
 
+  // --- VOICE OUTPUT (Text-to-Speech) ---
+  const speak = (text: string) => {
+    if (!isVoiceEnabled || !('speechSynthesis' in window)) return;
+    
+    // Cancel any current speech
+    window.speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    // Optional: Select a specific voice if desired
+    // const voices = window.speechSynthesis.getVoices();
+    // utterance.voice = voices[0]; 
+    
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const handleMicClick = () => {
+    if (listening) {
+      SpeechRecognition.stopListening();
+    } else {
+      resetTranscript();
+      SpeechRecognition.startListening({ continuous: true });
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
 
-    // 1. Show User Message Immediately
+    // Stop listening if mic was on
+    if (listening) {
+      SpeechRecognition.stopListening();
+    }
+
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
       role: 'user',
@@ -44,28 +88,34 @@ export function AIChat({ onSendMessage }: AIChatProps) {
 
     setMessages(prev => [...prev, userMessage]);
     setInput('');
+    resetTranscript();
     setIsLoading(true);
 
     try {
-      // 2. WAIT for the Real Response from Backend
       const responseText = await onSendMessage(input);
       
-      // 3. Show Real AI Response
       const aiResponse: ChatMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        content: responseText, // <--- THIS IS THE REAL ANSWER NOW
+        content: responseText,
         timestamp: new Date(),
       };
 
       setMessages(prev => [...prev, aiResponse]);
+      
+      // Speak the response!
+      speak(responseText);
+
     } catch (error) {
       console.error('Error sending message:', error);
-      // Optional: Add an error message to the chat
     } finally {
       setIsLoading(false);
     }
   };
+
+  if (!browserSupportsSpeechRecognition) {
+    console.warn("Browser doesn't support speech recognition.");
+  }
 
   return (
     <div className="flex flex-col h-full bg-zinc-950 border-l border-zinc-800">
@@ -84,6 +134,17 @@ export function AIChat({ onSendMessage }: AIChatProps) {
               </div>
             </div>
           </div>
+          {/* Voice Toggle Button */}
+          <button 
+            onClick={() => {
+                setIsVoiceEnabled(!isVoiceEnabled);
+                window.speechSynthesis.cancel();
+            }}
+            className="p-2 text-zinc-400 hover:text-white transition-colors"
+            title={isVoiceEnabled ? "Mute Voice" : "Enable Voice"}
+          >
+            {isVoiceEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
+          </button>
         </div>
       </div>
 
@@ -113,19 +174,36 @@ export function AIChat({ onSendMessage }: AIChatProps) {
 
       {/* Input Area */}
       <div className="p-6 border-t border-zinc-800">
-        <form onSubmit={handleSubmit} className="relative">
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask me to schedule a meeting..."
-            disabled={isLoading}
-            className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 pr-12 text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all disabled:opacity-50"
-          />
+        <form onSubmit={handleSubmit} className="relative flex items-center gap-2">
+          <div className="relative flex-1">
+            <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder={listening ? "Listening..." : "Ask me to schedule a meeting..."}
+                disabled={isLoading}
+                className={`w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 pr-12 text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all disabled:opacity-50 ${listening ? 'ring-2 ring-red-500/50' : ''}`}
+            />
+            
+            {/* Mic Button inside Input */}
+            <button
+                type="button"
+                onClick={handleMicClick}
+                disabled={isLoading}
+                className={`absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-lg transition-colors ${
+                    listening 
+                    ? 'text-red-500 hover:bg-red-500/10 animate-pulse' 
+                    : 'text-zinc-400 hover:text-white hover:bg-zinc-800'
+                }`}
+            >
+                {listening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+            </button>
+          </div>
+
           <button
             type="submit"
             disabled={!input.trim() || isLoading}
-            className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="p-3 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
           >
             <Send className="w-4 h-4" />
           </button>
