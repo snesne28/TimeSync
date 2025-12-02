@@ -7,7 +7,7 @@ interface AIChatProps {
   onSendMessage: (message: string) => Promise<string>;
 }
 
-// 1. Define the Native Speech API type
+// Define the Native Speech API type for TypeScript
 interface IWindow extends Window {
   webkitSpeechRecognition: any;
   SpeechRecognition: any;
@@ -25,58 +25,57 @@ export function AIChat({ onSendMessage }: AIChatProps) {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isVoiceEnabled, setIsVoiceEnabled] = useState(true);
-  const [isListening, setIsListening] = useState(false); // Manually track listening
+  const [isListening, setIsListening] = useState(false);
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const recognitionRef = useRef<any>(null); // Store the speech engine
+  const recognitionRef = useRef<any>(null);
 
-  // --- 2. INITIALIZE NATIVE SPEECH ENGINE ---
+  // --- INITIALIZE NATIVE SPEECH ENGINE ---
   useEffect(() => {
+    // Check for browser support (Chrome/Edge use webkit prefix)
     const { webkitSpeechRecognition } = window as unknown as IWindow;
     
     if (!webkitSpeechRecognition) {
-      console.error(" Web Speech API is NOT supported in this browser.");
+      console.error("Web Speech API is NOT supported in this browser.");
       return;
     }
 
     const recognition = new webkitSpeechRecognition();
-    recognition.continuous = true;
-    recognition.interimResults = true;
+    recognition.continuous = true;     // Keep listening even after pauses
+    recognition.interimResults = true; // Show results while speaking
     recognition.lang = 'en-US';
 
-    // EVENT: When mic actually starts
     recognition.onstart = () => {
-      console.log(" Mic is OPEN");
+      console.log("Mic is OPEN");
       setIsListening(true);
     };
 
-    // EVENT: When mic stops
     recognition.onend = () => {
-      console.log(" Mic is CLOSED");
+      console.log("Mic is CLOSED");
       setIsListening(false);
     };
 
-    // EVENT: When speech is detected
     recognition.onresult = (event: any) => {
       let finalTranscript = '';
+      
+      // Loop through results to build the string
       for (let i = event.resultIndex; i < event.results.length; ++i) {
         if (event.results[i].isFinal) {
           finalTranscript += event.results[i][0].transcript;
         } else {
-          // You can handle interim results here if you want real-time preview
+          // You could handle interim results here if you want
           finalTranscript += event.results[i][0].transcript;
         }
       }
-      // Update Input
+
       if (finalTranscript) {
         console.log("Heard:", finalTranscript);
         setInput(finalTranscript);
       }
     };
 
-    // EVENT: Errors
     recognition.onerror = (event: any) => {
-      console.error("⚠️ Speech Error:", event.error);
+      console.error("Speech Error:", event.error);
       if (event.error === 'not-allowed') {
         alert("Microphone access denied! Please allow permissions in browser settings.");
       }
@@ -86,11 +85,11 @@ export function AIChat({ onSendMessage }: AIChatProps) {
     recognitionRef.current = recognition;
   }, []);
 
-  // --- 3. HANDLERS ---
+  // --- HANDLERS ---
 
   const handleMicClick = () => {
     if (!recognitionRef.current) {
-        alert("Your browser does not support Speech Recognition. Try Google Chrome.");
+        alert("Your browser does not support Speech Recognition. Please try Google Chrome.");
         return;
     }
 
@@ -100,7 +99,7 @@ export function AIChat({ onSendMessage }: AIChatProps) {
       try {
         recognitionRef.current.start();
       } catch (err) {
-        console.error("Start error (usually harmless if already started):", err);
+        console.error("Start error (likely already started):", err);
       }
     }
   };
@@ -159,6 +158,7 @@ export function AIChat({ onSendMessage }: AIChatProps) {
     scrollToBottom();
   }, [messages]);
 
+  // --- RENDER UI ---
   return (
     <div className="flex flex-col h-full bg-zinc-950 border-l border-zinc-800">
       {/* Header */}
@@ -182,6 +182,7 @@ export function AIChat({ onSendMessage }: AIChatProps) {
                 window.speechSynthesis.cancel();
             }}
             className="p-2 text-zinc-400 hover:text-white transition-colors"
+            title={isVoiceEnabled ? "Mute Voice" : "Enable Voice"}
           >
             {isVoiceEnabled ? <Volume2 className="w-5 h-5" /> : <VolumeX className="w-5 h-5" />}
           </button>
@@ -193,6 +194,7 @@ export function AIChat({ onSendMessage }: AIChatProps) {
         {messages.map(message => (
           <ChatMessageComponent key={message.id} message={message} />
         ))}
+        
         {isLoading && (
           <div className="flex gap-3">
             <div className="flex-shrink-0 w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center">
@@ -203,5 +205,56 @@ export function AIChat({ onSendMessage }: AIChatProps) {
             </div>
           </div>
         )}
+        
         <div ref={messagesEndRef} />
       </div>
+
+      {/* Input Area */}
+      <div className="p-6 border-t border-zinc-800 relative">
+        
+        {/* Visual Indicator for Listening */}
+        {isListening && (
+          <div className="absolute -top-8 left-6 flex items-center gap-2 bg-red-500/10 text-red-500 px-3 py-1 rounded-full text-xs font-medium animate-pulse border border-red-500/20">
+            <div className="w-2 h-2 bg-red-500 rounded-full animate-ping" />
+            Listening...
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="relative flex items-center gap-2">
+          <div className="relative flex-1">
+            <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder={isListening ? "Listening..." : "Ask me to schedule a meeting..."}
+                disabled={isLoading}
+                className={`w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 pr-12 text-zinc-100 placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition-all disabled:opacity-50 ${isListening ? 'ring-2 ring-red-500/50 border-red-500/50' : ''}`}
+            />
+            
+            {/* Mic Button */}
+            <button
+                type="button"
+                onClick={handleMicClick}
+                disabled={isLoading}
+                className={`absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-lg transition-colors ${
+                    isListening 
+                    ? 'text-red-500 bg-red-500/10 hover:bg-red-500/20' 
+                    : 'text-zinc-400 hover:text-white hover:bg-zinc-800'
+                }`}
+            >
+                {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+            </button>
+          </div>
+
+          <button
+            type="submit"
+            disabled={!input.trim() || isLoading}
+            className="p-3 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+          >
+            <Send className="w-4 h-4" />
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
