@@ -76,15 +76,6 @@ export function AIChat({ onSendMessage }: AIChatProps) {
     window.speechSynthesis.speak(utterance);
   };
 
-  const handleMicClick = () => {
-    if (listening) {
-      SpeechRecognition.stopListening();
-    } else {
-      resetTranscript();
-      SpeechRecognition.startListening({ continuous: true });
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
