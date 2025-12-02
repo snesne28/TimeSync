@@ -11,7 +11,7 @@ This project implements a full-stack AI Agent using a **React** frontend and a *
 * **Natural Language Scheduling:** Chat with an AI to book, query, and manage events.
 * **Voice Assistant:** Speak directly to the agent to issue commands using the integrated microphone button (Speech-to-Text) and hear audio responses (Text-to-Speech).
 * **Contextual Memory:** The agent remembers previous turns in the conversation (e.g., referencing a date mentioned earlier).
-* **Global Timezone Support:** Automatically detects the user's location (e.g., Amsterdam, India, New York) and handles booking times in their local timezone.
+* **Global Timezone Support:** Automatically detects the user's location (e.g.,India, New York) and handles booking times in their local timezone.
 * **Guest Mode (Privacy):** Uses a UUID-based system to give every device a unique, isolated calendar database. No user login required.
 * **Persistent Storage:** Events and chat history are stored in a PostgreSQL database.
 * **Real-time UI:** The calendar grid updates instantly after the AI confirms an action.
