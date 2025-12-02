@@ -28,16 +28,31 @@ export function AIChat({ onSendMessage }: AIChatProps) {
     transcript,
     listening,
     resetTranscript,
-    browserSupportsSpeechRecognition
+    browserSupportsSpeechRecognition,
+    isMicrophoneAvailable // <--- Check this
   } = useSpeechRecognition();
 
-  // Sync Voice Input with Text Box
+  // Add this debugging useEffect
   useEffect(() => {
-    if (transcript) {
-      setInput(transcript);
+    if (!browserSupportsSpeechRecognition) {
+      console.error("Browser does not support speech recognition.");
     }
-  }, [transcript]);
-
+    if (!isMicrophoneAvailable) {
+      console.error("Microphone is not available or permission denied.");
+    }
+  }, [browserSupportsSpeechRecognition, isMicrophoneAvailable]);
+  
+  // Update the handleMicClick 
+  const handleMicClick = () => {
+    if (listening) {
+      SpeechRecognition.stopListening();
+      console.log("Stopped listening");
+    } else {
+      resetTranscript();
+      SpeechRecognition.startListening({ continuous: true, language: 'en-US' });
+      console.log("Started listening...");
+    }
+  };
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
